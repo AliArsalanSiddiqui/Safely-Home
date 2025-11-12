@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Safely Home",
+    "slug": "safely-home",
+    "version": "1.0.0",
+    "assetBundlePatterns": ["**/*"],
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Safely Home to access your camera for facial recognition.",
+          "microphonePermission": "Allow Safely Home to access your microphone."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Safely Home to access your location for ride tracking."
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTabletMode": true,
+      "bundleIdentifier": "com.safelyhome.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Camera is used for facial recognition during driver registration and login.",
+        "NSLocationWhenInUseUsageDescription": "Location is used to find nearby drivers and track your ride.",
+        "NSMicrophoneUsageDescription": "Microphone access for video calls with support."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#3d2f5f"
+      },
+      "package": "com.safelyhome.app",
+      "permissions": ["CAMERA", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "RECORD_AUDIO"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "scheme": "safelyhome",
+    "orientation": "portrait"
+  }
+}
