@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: safely_home_mongodb
+    restart: always
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: safely_home_user
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+      MONGO_INITDB_DATABASE: safely_home
+    networks:
+      - safely_home_network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: safely_home_api
+    restart: always
+    depends_on:
+      - mongodb
+    ports:
+      - "3000:3000"
+    environment:
+      MONGODB_URI: ${MONGODB_URI}
+      JWT_SECRET: ${JWT_SECRET}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      NODE_ENV: production
+      PORT: 3000
+    networks:
+      - safely_home_network
+    labels:
+      - "com.example.description=Safely Home API"
+
+  nginx:
+    image: nginx:alpine
+    container_name: safely_home_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./logs:/var/log/nginx:rw
+    depends_on:
+      - api
+    networks:
+      - safely_home_network
+
+volumes:
+  mongodb_data:
+  mongodb_config:
+
+networks:
+  safely_home_network:
+    driver: bridge

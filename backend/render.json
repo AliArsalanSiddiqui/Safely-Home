@@ -1,0 +1,41 @@
+{
+  "buildCommand": "npm install",
+  "startCommand": "npm start",
+  "envVars": [
+    {
+      "key": "MONGODB_URI",
+      "scope": "build"
+    },
+    {
+      "key": "JWT_SECRET",
+      "scope": "build"
+    },
+    {
+      "key": "GOOGLE_MAPS_API_KEY",
+      "scope": "build"
+    },
+    {
+      "key": "FIREBASE_PROJECT_ID",
+      "scope": "build"
+    },
+    {
+      "key": "NODE_ENV",
+      "value": "production"
+    },
+    {
+      "key": "PORT",
+      "value": "10000"
+    }
+  ],
+  "services": [
+    {
+      "type": "web",
+      "name": "safely-home-api",
+      "plan": "free",
+      "numInstances": 1,
+      "healthCheckPath": "/health",
+      "buildCommand": "npm install",
+      "startCommand": "npm start"
+    }
+  ]
+}
