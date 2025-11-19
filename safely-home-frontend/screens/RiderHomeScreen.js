@@ -1,8 +1,3 @@
-// ============================================
-// FILE: screens/RiderHomeScreen.js (COMPLETE FIX)
-// FIXED: Proper scrolling + Clickable locations + Auto-refresh
-// ============================================
-
 import React, { useState, useEffect } from 'react';
 import { 
   View, 
@@ -448,61 +443,3 @@ const styles = StyleSheet.create({
     textAlign: 'center' 
   },
 });
-
-/*
-===============================================
-✅ WHAT WAS FIXED:
-===============================================
-
-1. SCROLLING:
-   ✅ Wrapped content in ScrollView
-   ✅ Added RefreshControl for pull-to-refresh
-   ✅ Added proper padding at bottom
-   ✅ Header stays fixed at top
-   ✅ Smooth scrolling with showsVerticalScrollIndicator={false}
-
-2. CLICKABLE LOCATIONS:
-   ✅ Changed View to TouchableOpacity for pickup
-   ✅ Changed View to TouchableOpacity for destination
-   ✅ Added arrow (›) to show it's clickable
-   ✅ Added activeOpacity for visual feedback
-   ✅ Passes parameters to BookingScreen
-   ✅ Added border highlight
-
-3. GENDER PREFERENCE UPDATE:
-   ✅ Added navigation.addListener('focus')
-   ✅ Reloads user data when screen comes back into focus
-   ✅ Updates display immediately
-   ✅ No app restart needed
-
-4. VISUAL IMPROVEMENTS:
-   ✅ Added subtle shadows/elevation
-   ✅ Better spacing
-   ✅ Arrow indicators
-   ✅ Welcome card now visible
-
-===============================================
-HOW TO TEST:
-===============================================
-
-1. SCROLLING:
-   - Open RiderHomeScreen
-   - Swipe up/down - content should scroll
-   - Pull down from top - should refresh
-   - Welcome card should be visible at bottom
-
-2. CLICKABLE LOCATIONS:
-   - Click "📍 Current Location" 
-     → Should navigate to BookingScreen
-   - Click "🎯 Where to?"
-     → Should navigate to BookingScreen
-   - See arrow (›) indicating it's clickable
-
-3. GENDER PREFERENCE:
-   - Click preference button
-   - Change preference
-   - Click Continue
-   - Should see updated preference immediately
-
-===============================================
-*/
