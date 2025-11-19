@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "SafelyHome",
+    "slug": "safelyhome",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#312C51"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.safelyhome",
+      "config": {
+        "googleMapsApiKey": "AIzaSyCzsOcj0ZcFzNfyqLskuOQQC2ttgB_0Pyk"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#312C51"
+      },
+      "package": "com.yourcompany.safelyhome",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCzsOcj0ZcFzNfyqLskuOQQC2ttgB_0Pyk"
+        }
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Safely Home to use your location for ride tracking."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Safely Home to access your camera for driver verification."
+        }
+      ]
+    ]
+  }
+}
