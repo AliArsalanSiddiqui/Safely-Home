@@ -6,10 +6,23 @@ import { cancelRide } from '../services/api';
 import socketService from '../services/socket';
 
 export default function RiderTrackingScreen({ navigation, route }) {
-  const { rideId, driver, pickup, destination } = route.params;
+  // CRITICAL FIX: Get locations from route params
+  const params = route.params || {};
+  const rideId = params.rideId;
+  const driver = params.driver || {};
+  const pickupLocation = params.pickup || 'Loading pickup location...';
+  const destinationLocation = params.destination || 'Loading destination...';
+  
   const [status, setStatus] = useState('Driver is on the way');
   const [arrivalTime, setArrivalTime] = useState('5 mins');
   const [userId, setUserId] = useState(null);
+
+  console.log('🚗 RiderTracking mounted with params:', {
+    rideId,
+    driver: driver.name,
+    pickup: pickupLocation,
+    destination: destinationLocation
+  });
 
   useEffect(() => {
     loadUser();
@@ -23,19 +36,23 @@ export default function RiderTrackingScreen({ navigation, route }) {
   }, []);
 
   const loadUser = async () => {
-    const userData = await AsyncStorage.getItem('user');
-    if (userData) {
-      const user = JSON.parse(userData);
-      setUserId(user.id);
-      // Make sure socket is connected
-      socketService.connect(user.id);
+    try {
+      const userData = await AsyncStorage.getItem('user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        setUserId(user.id);
+        socketService.connect(user.id);
+        console.log('✅ Socket connected for rider:', user.id);
+      }
+    } catch (error) {
+      console.error('Error loading user:', error);
     }
   };
 
   const setupSocketListeners = () => {
-    // Listen for ride completion
+    // Ride completion
     socketService.on('rideCompleted', (data) => {
-      console.log('✅ Ride completed by driver:', data);
+      console.log('✅ Ride completed:', data);
       Alert.alert(
         'Trip Completed! 🎉',
         'How was your experience?',
@@ -52,27 +69,29 @@ export default function RiderTrackingScreen({ navigation, route }) {
       );
     });
 
-    // Listen for ride cancellation
-    socketService.on('rideCancelled', () => {
+    // Ride cancellation
+    socketService.on('rideCancelled', (data) => {
+      console.log('❌ Ride cancelled:', data);
       Alert.alert('Ride Cancelled', 'Driver cancelled the ride', [
         { text: 'OK', onPress: () => navigation.replace('RiderHome') }
       ]);
     });
 
-    // FIXED: Listen for status updates from driver
+    // CRITICAL FIX: Status updates from driver
     socketService.on('rideStatusUpdate', (data) => {
-      console.log('📡 Status update received:', data);
+      console.log('📡 Status update received in RiderTracking:', data);
       
-      if (data.rideId === rideId || !data.rideId) {
-        if (data.status === 'arrived') {
-          setStatus('🎯 Driver has arrived!');
-          setArrivalTime('Now');
-          Alert.alert('Driver Arrived', 'Your driver is waiting at the pickup location');
-        } else if (data.status === 'started') {
-          setStatus('🚀 Trip in progress');
-          setArrivalTime('En route');
-          Alert.alert('Trip Started', 'You are on your way to the destination');
-        }
+      // Update regardless of rideId match (in case it's missing)
+      if (data.status === 'arrived') {
+        setStatus('🎯 Driver has arrived! ');
+        setArrivalTime('Now');
+        console.log('✅ Updated status to ARRIVED');
+        Alert.alert('Driver Arrived', 'Your driver is waiting at the pickup location');
+      } else if (data.status === 'started') {
+        setStatus('🚀 Trip in progress');
+        setArrivalTime('En route');
+        console.log('✅ Updated status to STARTED');
+        Alert.alert('Trip Started', 'You are on your way to the destination');
       }
     });
   };
@@ -115,28 +134,29 @@ export default function RiderTrackingScreen({ navigation, route }) {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.statusContainer}>
-          <Text style={styles.arrivalTime}>Arriving in {arrivalTime}</Text>
+          <Text style={styles.arrivalTime}>Arriving in {arrivalTime} </Text>
           <View style={styles.navigationIcon}>
             <Text style={styles.navigationIconText}>🧭</Text>
           </View>
-          <Text style={styles.statusText}>{status}</Text>
+          <Text style={styles.statusText}>{status} </Text>
         </View>
 
         <View style={styles.driverCard}>
           <View style={styles.driverInfo}>
             <View style={styles.driverAvatar}>
               <Text style={styles.driverAvatarText}>
-                {driver?.name?.split(' ').map(n => n[0]).join('') || 'D'}
+                {driver.name ? driver.name.split(' ').map(n => n[0]).join('') : 'D'}
               </Text>
             </View>
             <View style={styles.driverDetails}>
-              <Text style={styles.driverName}>{driver?.name || 'Driver'}</Text>
+              <Text style={styles.driverName}>{driver.name || 'Driver'}</Text>
               <View style={styles.ratingContainer}>
                 <Text style={styles.ratingStar}>⭐</Text>
-                <Text style={styles.ratingText}>{driver?.rating || '4.9'} ({driver?.totalTrips || '234'} trips)</Text>
+                <Text style={styles.ratingText}>
+                  {driver.rating ? Number(driver.rating).toFixed(1) : '0.0'} • {driver.totalRides || 0} rides </Text>
               </View>
               <Text style={styles.genderText}>
-                {driver?.gender === 'female' ? '👩 Female Driver' : '👨 Male Driver'}
+                {driver.gender === 'female' ? '👩 Female Driver' : '👨 Male Driver'}
               </Text>
             </View>
           </View>
@@ -144,13 +164,17 @@ export default function RiderTrackingScreen({ navigation, route }) {
           <View style={styles.vehicleInfoCard}>
             <Text style={styles.vehicleIcon}>🚗</Text>
             <View style={styles.vehicleDetails}>
-              <Text style={styles.vehicleText}>{driver?.vehicleInfo?.model || 'Toyota Camry'}</Text>
-              <Text style={styles.vehiclePlate}>{driver?.vehicleInfo?.licensePlate || 'ABC-1234'}</Text>
+              <Text style={styles.vehicleText}>
+                {driver.vehicleInfo?.model || 'Vehicle information'}
+              </Text>
+              <Text style={styles.vehiclePlate}>
+                {driver.vehicleInfo?.licensePlate || 'License plate'}
+              </Text>
             </View>
           </View>
 
           <View style={styles.driverActions}>
-            <TouchableOpacity style={styles.actionButton} onPress={() => Alert.alert('Calling...', driver?.phone)}>
+            <TouchableOpacity style={styles.actionButton} onPress={() => Alert.alert('Calling...', driver.phone)}>
               <Text style={styles.actionIcon}>📞</Text>
               <Text style={styles.actionLabel}>Call</Text>
             </TouchableOpacity>
@@ -164,13 +188,13 @@ export default function RiderTrackingScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
 
-          {/* FIXED: Show pickup and destination locations */}
+          {/* CRITICAL FIX: Display pickup and destination */}
           <View style={styles.tripInfo}>
             <View style={styles.tripRow}>
               <Text style={styles.tripIcon}>📍</Text>
               <View style={styles.tripTextContainer}>
                 <Text style={styles.tripLabel}>Pickup Location</Text>
-                <Text style={styles.tripValue}>{pickup || 'Pickup location'}</Text>
+                <Text style={styles.tripValue}>{pickupLocation}</Text>
               </View>
             </View>
             <View style={styles.tripDivider} />
@@ -178,7 +202,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
               <Text style={styles.tripIcon}>🎯</Text>
               <View style={styles.tripTextContainer}>
                 <Text style={styles.tripLabel}>Destination</Text>
-                <Text style={styles.tripValue}>{destination || 'Destination'}</Text>
+                <Text style={styles.tripValue}>{destinationLocation}</Text>
               </View>
             </View>
           </View>

@@ -16,6 +16,7 @@ export default function BookingScreen({ navigation, route }) {
   const [destinationLocation, setDestinationLocation] = useState(null);
   const [editingField, setEditingField] = useState(null);
   const [userId, setUserId] = useState(null);
+  const [currentRideId, setCurrentRideId] = useState(null);
   const mapRef = useRef(null);
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export default function BookingScreen({ navigation, route }) {
 
       const address = await Location.reverseGeocodeAsync(coords);
       if (address[0]) {
-        const fullAddress = `${address[0].street || ''}, ${address[0].city || ''}`;
+        const fullAddress = `${address[0].street || address[0].name || 'Unknown street'}, ${address[0].city || 'City'}`;
         setPickup(fullAddress);
       }
 
@@ -77,10 +78,18 @@ export default function BookingScreen({ navigation, route }) {
   };
 
   const setupSocketListeners = () => {
-    // FIXED: When driver accepts, pass pickup and destination
     socketService.on('driverAccepted', (data) => {
-      console.log('✅ Driver accepted:', data);
+      console.log('✅ Driver accepted - Full data:', JSON.stringify(data, null, 2));
       setSearchingDriver(false);
+      
+      // CRITICAL FIX: Ensure locations are strings
+      const pickupLocation = pickup || 'Pickup location';
+      const destinationLocation = destination || 'Destination';
+      
+      console.log('Navigating with locations:', { 
+        pickup: pickupLocation, 
+        destination: destinationLocation 
+      });
       
       Alert.alert(
         '🚗 Driver Found!',
@@ -88,12 +97,14 @@ export default function BookingScreen({ navigation, route }) {
         [
           { 
             text: 'View Details', 
-            onPress: () => navigation.replace('RiderTracking', { 
-              rideId: data.rideId,
-              driver: data.driver,
-              pickup: pickup,  // FIXED: Pass pickup
-              destination: destination  // FIXED: Pass destination
-            }) 
+            onPress: () => {
+              navigation.replace('RiderTracking', { 
+                rideId: data.rideId || currentRideId,
+                driver: data.driver,
+                pickup: pickupLocation,
+                destination: destinationLocation
+              });
+            }
           }
         ]
       );
@@ -112,16 +123,24 @@ export default function BookingScreen({ navigation, route }) {
     
     if (editingField === 'pickup') {
       setCurrentLocation(coordinate);
-      const address = await Location.reverseGeocodeAsync(coordinate);
-      if (address[0]) {
-        setPickup(`${address[0].street || address[0].name || ''}, ${address[0].city || ''}`);
+      try {
+        const address = await Location.reverseGeocodeAsync(coordinate);
+        if (address[0]) {
+          setPickup(`${address[0].street || address[0].name || 'Selected location'}, ${address[0].city || ''}`);
+        }
+      } catch (error) {
+        setPickup('Selected pickup location');
       }
       setEditingField(null);
     } else if (editingField === 'destination') {
       setDestinationLocation(coordinate);
-      const address = await Location.reverseGeocodeAsync(coordinate);
-      if (address[0]) {
-        setDestination(`${address[0].street || address[0].name || ''}, ${address[0].city || ''}`);
+      try {
+        const address = await Location.reverseGeocodeAsync(coordinate);
+        if (address[0]) {
+          setDestination(`${address[0].street || address[0].name || 'Selected location'}, ${address[0].city || ''}`);
+        }
+      } catch (error) {
+        setDestination('Selected destination');
       }
       setEditingField(null);
     }
@@ -156,10 +175,13 @@ export default function BookingScreen({ navigation, route }) {
         fare: 12.50
       };
 
+      console.log('📤 Requesting ride with data:', rideData);
+
       const response = await requestRide(rideData.pickup, rideData.destination, rideData.fare);
       
       if (response.success) {
-        console.log('✅ Ride requested successfully');
+        setCurrentRideId(response.rideId);
+        console.log('✅ Ride requested - RideId:', response.rideId);
         Alert.alert(
           'Finding Driver', 
           `Looking for ${response.availableDrivers} available drivers nearby...`,

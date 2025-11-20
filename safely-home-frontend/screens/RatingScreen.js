@@ -11,12 +11,12 @@ export default function RatingScreen({ navigation, route }) {
   const [loading, setLoading] = useState(false);
 
   const tags = [
-    { id: 1, label: '🚗 Clean Vehicle' },
-    { id: 2, label: '🛡️ Safe Driving' },
-    { id: 3, label: '😊 Friendly Driver' },
-    { id: 4, label: '⏰ On Time' },
+    { id: 1, label: '🚗 Clean Vehicle ' },
+    { id: 2, label: '🛡️ Safe Driving ' },
+    { id: 3, label: '😊 Friendly Driver ' },
+    { id: 4, label: '⏰ On Time ' },
     { id: 5, label: '🗺️ Good Route' },
-    { id: 6, label: '💼 Professional' },
+    { id: 6, label: '💼 Professional ' },
   ];
 
   const toggleTag = (tagId) => {
@@ -81,12 +81,12 @@ export default function RatingScreen({ navigation, route }) {
               {driver?.name?.split(' ').map(n => n[0]).join('') || 'D'}
             </Text>
           </View>
-          <Text style={styles.driverName}>{driver?.name || 'Your Driver'}</Text>
+          <Text style={styles.driverName}>{driver?.name || 'Your Driver'} </Text>
           <View style={styles.driverStats}>
-            <Text style={styles.driverStat}>⭐ {driver?.rating || '4.9'}</Text>
-            <Text style={styles.driverStat}>• {driver?.totalTrips || '234'} trips</Text>
+            <Text style={styles.driverStat}>⭐ {driver?.rating || '4.9 '} </Text>
+            <Text style={styles.driverStat}>• {driver?.totalTrips || '234'} trips </Text>
           </View>
-          <Text style={styles.tripId}>Trip #{rideId?.slice(-6) || 'XXXXX'}</Text>
+          <Text style={styles.tripId}>Trip #{rideId?.slice(-6) || 'XXXXX'} </Text>
         </View>
 
         <View style={styles.ratingSection}>
@@ -106,7 +106,7 @@ export default function RatingScreen({ navigation, route }) {
             ))}
           </View>
           <Text style={styles.ratingLabel}>
-            {rating === 0 && 'Tap to rate'}
+            {rating === 0 && 'Tap to rate'} 
             {rating === 1 && 'Poor'}
             {rating === 2 && 'Fair'}
             {rating === 3 && 'Good'}
@@ -173,7 +173,7 @@ export default function RatingScreen({ navigation, route }) {
             );
           }}
         >
-          <Text style={styles.skipButtonText}>Skip for Now</Text>
+          <Text style={styles.skipButtonText}>Skip for Now </Text>
         </TouchableOpacity>
 
         <View style={{ height: 30 }} />
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   starButton: { padding: 5 },
   star: { fontSize: 50, color: COLORS.secondary },
   starFilled: { color: COLORS.accent },
-  ratingLabel: { fontSize: 18, color: COLORS.accent, fontWeight: 'bold', height: 25, marginTop: 5 },
+  ratingLabel: { fontSize: 18, color: COLORS.accent, fontWeight: 'bold', height: 25, marginTop: 5},
   
   tagsSection: { marginBottom: 30 },
   tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

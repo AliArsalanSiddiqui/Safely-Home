@@ -435,26 +435,37 @@ app.post('/api/ride/accept', authenticateToken, async (req, res) => {
 
     const driver = await User.findById(req.user.userId);
     
+    // FIXED: Get total completed rides for this driver
+    const totalRides = await Ride.countDocuments({
+      driverId: req.user.userId,
+      status: 'completed'
+    });
+    
     console.log('✅ Ride accepted by driver:', driver.name);
 
+    // Emit to rider with complete driver info including totalRides
     io.to(ride.riderId._id.toString()).emit('driverAccepted', {
       rideId: ride._id,
       driver: {
         id: driver._id,
         name: driver.name,
         phone: driver.phone,
-        rating: driver.rating,
+        rating: driver.rating || 0,
+        totalRides: totalRides, // FIXED: Include total rides
         vehicleInfo: driver.vehicleInfo,
         gender: driver.gender
       }
     });
 
+    // Emit to driver
     io.to(driver._id.toString()).emit('rideAcceptedByYou', {
       rideId: ride._id,
       rider: {
         name: ride.riderId.name,
         phone: ride.riderId.phone
-      }
+      },
+      pickup: ride.pickup?.address || 'Pickup location',
+      destination: ride.destination?.address || 'Destination'
     });
 
     res.json({ 
@@ -506,18 +517,150 @@ app.post('/api/ride/cancel', authenticateToken, async (req, res) => {
 app.post('/api/ride/rate', authenticateToken, async (req, res) => {
   try {
     const { rideId, rating, feedback } = req.body;
-    const ride = await Ride.findById(rideId);
-    if (!ride || !ride.driverId) return res.status(404).json({ success: false, error: 'Ride or driver not found' });
-    ride.feedback = { rating, tags: feedback?.tags || [], comments: feedback?.comments || '' };
+    
+    console.log('📝 Rating submission:', { rideId, rating, feedback });
+    
+    // Validate rating
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Rating must be between 1 and 5' 
+      });
+    }
+    
+    // Find the ride
+    const ride = await Ride.findById(rideId).populate('driverId');
+    
+    if (!ride) {
+      console.error('❌ Ride not found:', rideId);
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Ride not found' 
+      });
+    }
+    
+    if (!ride.driverId) {
+      console.error('❌ Driver not found for ride:', rideId);
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Driver not found for this ride' 
+      });
+    }
+    
+    // Check if already rated
+    if (ride.feedback && ride.feedback.rating) {
+      console.warn('⚠️ Ride already rated');
+      return res.status(400).json({ 
+        success: false, 
+        error: 'This ride has already been rated' 
+      });
+    }
+    
+    // Update ride with feedback
+    ride.feedback = {
+      rating: rating,
+      tags: feedback?.tags || [],
+      comments: feedback?.comments || ''
+    };
     await ride.save();
+    
+    console.log('✅ Ride feedback saved:', ride.feedback);
+    
+    // Calculate new driver rating
     const driver = await User.findById(ride.driverId);
-    const totalRides = await Ride.countDocuments({ driverId: ride.driverId, status: 'completed', 'feedback.rating': { $exists: true } });
-    const newRating = ((driver.rating * (totalRides - 1)) + rating) / totalRides;
-    await User.findByIdAndUpdate(ride.driverId, { rating: newRating });
-    console.log('⭐ Ride rated:', rating, 'stars');
-    res.json({ success: true, newRating: newRating.toFixed(1) });
+    
+    // Count all completed rides with ratings
+    const completedRidesWithRatings = await Ride.countDocuments({
+      driverId: ride.driverId,
+      status: 'completed',
+      'feedback.rating': { $exists: true, $ne: null }
+    });
+    
+    // Calculate average rating
+    const allRatedRides = await Ride.find({
+      driverId: ride.driverId,
+      status: 'completed',
+      'feedback.rating': { $exists: true, $ne: null }
+    }).select('feedback.rating');
+    
+    const totalRating = allRatedRides.reduce((sum, r) => sum + r.feedback.rating, 0);
+    const newAverageRating = completedRidesWithRatings > 0 
+      ? totalRating / completedRidesWithRatings 
+      : 5.0;
+    
+    // Update driver rating
+    driver.rating = Number(newAverageRating.toFixed(2));
+    await driver.save();
+    
+    console.log('✅ Driver rating updated:', {
+      driverId: driver._id,
+      newRating: driver.rating,
+      totalRatedRides: completedRidesWithRatings
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Rating submitted successfully',
+      newRating: driver.rating,
+      totalRides: completedRidesWithRatings
+    });
+    
   } catch (error) {
     console.error('❌ Rate ride error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to submit rating',
+      details: error.message 
+    });
+  }
+});
+
+app.get('/api/driver/stats/:driverId', async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    
+    const driver = await User.findById(driverId);
+    if (!driver) {
+      return res.status(404).json({ success: false, error: 'Driver not found' });
+    }
+    
+    // Count total completed rides
+    const totalRides = await Ride.countDocuments({
+      driverId: driverId,
+      status: 'completed'
+    });
+    
+    // Count rides with ratings
+    const ratedRides = await Ride.countDocuments({
+      driverId: driverId,
+      status: 'completed',
+      'feedback.rating': { $exists: true, $ne: null }
+    });
+    
+    // Get all ratings
+    const ridesWithRatings = await Ride.find({
+      driverId: driverId,
+      status: 'completed',
+      'feedback.rating': { $exists: true, $ne: null }
+    }).select('feedback.rating feedback.tags feedback.comments createdAt');
+    
+    res.json({
+      success: true,
+      stats: {
+        totalRides,
+        ratedRides,
+        averageRating: driver.rating || 0,
+        reviews: ridesWithRatings.map(ride => ({
+          rating: ride.feedback.rating,
+          tags: ride.feedback.tags,
+          comments: ride.feedback.comments,
+          date: ride.createdAt
+        }))
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Get driver stats error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -592,6 +735,34 @@ io.on('connection', (socket) => {
     }
     console.log('👤 User disconnected:', socket.id);
   });
+  socket.on('rideStatusUpdate', async ({ rideId, status }) => {
+  try {
+    console.log('📡 Received status update:', { rideId, status });
+    
+    const ride = await Ride.findById(rideId).populate('riderId driverId');
+    
+    if (ride) {
+      // Broadcast to both rider and driver
+      if (ride.riderId) {
+        io.to(ride.riderId._id.toString()).emit('rideStatusUpdate', {
+          rideId: ride._id,
+          status: status
+        });
+        console.log('✅ Status sent to rider:', ride.riderId._id);
+      }
+      
+      if (ride.driverId) {
+        io.to(ride.driverId._id.toString()).emit('rideStatusUpdate', {
+          rideId: ride._id,
+          status: status
+        });
+        console.log('✅ Status sent to driver:', ride.driverId._id);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Status update error:', error);
+  }
+});
 });
 
 // Error Handler
