@@ -77,7 +77,7 @@ export default function BookingScreen({ navigation, route }) {
   };
 
   const setupSocketListeners = () => {
-    // FIXED: When driver accepts, go to tracking screen
+    // FIXED: When driver accepts, pass pickup and destination
     socketService.on('driverAccepted', (data) => {
       console.log('✅ Driver accepted:', data);
       setSearchingDriver(false);
@@ -91,8 +91,8 @@ export default function BookingScreen({ navigation, route }) {
             onPress: () => navigation.replace('RiderTracking', { 
               rideId: data.rideId,
               driver: data.driver,
-              pickup: pickup,
-              destination: destination
+              pickup: pickup,  // FIXED: Pass pickup
+              destination: destination  // FIXED: Pass destination
             }) 
           }
         ]
@@ -159,7 +159,7 @@ export default function BookingScreen({ navigation, route }) {
       const response = await requestRide(rideData.pickup, rideData.destination, rideData.fare);
       
       if (response.success) {
-        console.log('✅ Ride requested, searching for drivers...');
+        console.log('✅ Ride requested successfully');
         Alert.alert(
           'Finding Driver', 
           `Looking for ${response.availableDrivers} available drivers nearby...`,

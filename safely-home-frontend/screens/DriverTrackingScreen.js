@@ -26,8 +26,15 @@ export default function DriverTrackingScreen({ navigation, route }) {
 
   const handleArrivedAtPickup = () => {
     setRideStatus('at_pickup');
-    socketService.emit('rideStatusUpdate', { rideId, status: 'arrived' });
-    Alert.alert('Great!', 'Let the rider know you have arrived');
+    
+    // FIXED: Emit status update to backend/rider
+    console.log('📡 Emitting: arrived status');
+    socketService.emit('rideStatusUpdate', { 
+      rideId: rideId, 
+      status: 'arrived' 
+    });
+    
+    Alert.alert('Great! 👍', 'Let the rider know you have arrived');
   };
 
   const handleStartTrip = () => {
@@ -40,8 +47,15 @@ export default function DriverTrackingScreen({ navigation, route }) {
           text: 'Yes, Start Trip',
           onPress: () => {
             setRideStatus('in_progress');
-            socketService.emit('rideStatusUpdate', { rideId, status: 'started' });
-            Alert.alert('Trip Started', 'Navigate to destination');
+            
+            // FIXED: Emit status update to backend/rider
+            console.log('📡 Emitting: started status');
+            socketService.emit('rideStatusUpdate', { 
+              rideId: rideId, 
+              status: 'started' 
+            });
+            
+            Alert.alert('Trip Started 🚀', 'Navigate to destination');
           }
         }
       ]
@@ -58,10 +72,12 @@ export default function DriverTrackingScreen({ navigation, route }) {
           text: 'Yes, Complete',
           onPress: async () => {
             try {
+              console.log('✅ Completing ride:', rideId);
               await completeRide(rideId);
+              
               Alert.alert(
                 '✅ Ride Completed!',
-                'Great job! Earnings will be added to your account.',
+                'Great job! Earnings: $10.00 will be added to your account.',
                 [
                   { 
                     text: 'Back to Home', 
@@ -70,7 +86,8 @@ export default function DriverTrackingScreen({ navigation, route }) {
                 ]
               );
             } catch (error) {
-              Alert.alert('Error', 'Failed to complete ride');
+              console.error('Complete ride error:', error);
+              Alert.alert('Error', 'Failed to complete ride. Please try again.');
             }
           }
         }
@@ -184,12 +201,13 @@ export default function DriverTrackingScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
 
+          {/* FIXED: Show pickup and destination locations */}
           <View style={styles.tripInfo}>
             <View style={styles.tripRow}>
               <Text style={styles.tripIcon}>📍</Text>
               <View style={styles.tripTextContainer}>
                 <Text style={styles.tripLabel}>Pickup Location</Text>
-                <Text style={styles.tripValue}>{pickup}</Text>
+                <Text style={styles.tripValue}>{pickup || 'Pickup location'}</Text>
               </View>
               <TouchableOpacity style={styles.navigateButton} onPress={() => Alert.alert('Navigation', 'Opening maps...')}>
                 <Text style={styles.navigateButtonText}>Navigate</Text>
@@ -202,7 +220,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
               <Text style={styles.tripIcon}>🎯</Text>
               <View style={styles.tripTextContainer}>
                 <Text style={styles.tripLabel}>Destination</Text>
-                <Text style={styles.tripValue}>{destination}</Text>
+                <Text style={styles.tripValue}>{destination || 'Destination'}</Text>
               </View>
               <TouchableOpacity style={styles.navigateButton} onPress={() => Alert.alert('Navigation', 'Opening maps...')}>
                 <Text style={styles.navigateButtonText}>Navigate</Text>
@@ -216,7 +234,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
               <Text style={styles.fareValue}>$12.50</Text>
             </View>
             <View style={styles.fareRow}>
-              <Text style={styles.fareLabel}>Your Earnings (80%) </Text>
+              <Text style={styles.fareLabel}>Your Earnings (80%)</Text>
               <Text style={styles.fareEarnings}>$10.00</Text>
             </View>
           </View>
@@ -226,7 +244,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
 
             <View style={styles.secondaryButtons}>
               <TouchableOpacity style={styles.emergencyButton} onPress={() => Alert.alert('Emergency', 'Calling emergency services...')}>
-                <Text style={styles.emergencyButtonText}>🚨 Emergency </Text>
+                <Text style={styles.emergencyButtonText}>🚨 Emergency</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.cancelButton} onPress={handleCancelRide}>
                 <Text style={styles.cancelButtonText}>Cancel Ride</Text>
@@ -246,7 +264,6 @@ export default function DriverTrackingScreen({ navigation, route }) {
   );
 }
 
-// FIXED: Proper StyleSheet definition
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.primary },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60 },
@@ -258,7 +275,7 @@ const styles = StyleSheet.create({
   statusBadgeText: { fontSize: 16, fontWeight: 'bold', color: COLORS.textDark },
   statusText: { fontSize: 16, color: COLORS.text, textAlign: 'center' },
   riderCard: { backgroundColor: COLORS.secondary, marginHorizontal: 20, borderRadius: 20, padding: 25 },
-  riderInfo: { paddingLeft: 40,flexDirection: 'row', marginBottom: 20 },
+  riderInfo: { flexDirection: 'row', marginBottom: 20 },
   riderAvatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
   riderAvatarText: { fontSize: 24, fontWeight: 'bold', color: COLORS.textDark },
   riderDetails: { flex: 1, justifyContent: 'center' },
@@ -273,7 +290,7 @@ const styles = StyleSheet.create({
   tripIcon: { fontSize: 20, marginRight: 12, marginTop: 2 },
   tripTextContainer: { flex: 1 },
   tripLabel: { fontSize: 12, color: COLORS.text, opacity: 0.7, marginBottom: 4 },
-  tripValue: { fontSize: 14, color: COLORS.text },
+  tripValue: { fontSize: 14, color: COLORS.text, lineHeight: 20 },
   navigateButton: { backgroundColor: COLORS.accent, paddingHorizontal: 15, paddingVertical: 8, borderRadius: 8 },
   navigateButtonText: { fontSize: 12, color: COLORS.textDark, fontWeight: 'bold' },
   tripDivider: { height: 1, backgroundColor: COLORS.secondary, marginVertical: 5 },

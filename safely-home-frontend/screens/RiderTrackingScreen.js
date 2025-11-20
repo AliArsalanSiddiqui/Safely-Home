@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../config';
 import { cancelRide } from '../services/api';
 import socketService from '../services/socket';
 
 export default function RiderTrackingScreen({ navigation, route }) {
   const { rideId, driver, pickup, destination } = route.params;
-  const [status, setStatus] = useState('Driver is on its way ');
+  const [status, setStatus] = useState('Driver is on the way');
   const [arrivalTime, setArrivalTime] = useState('5 mins');
+  const [userId, setUserId] = useState(null);
 
   useEffect(() => {
+    loadUser();
     setupSocketListeners();
     
     return () => {
@@ -19,11 +22,22 @@ export default function RiderTrackingScreen({ navigation, route }) {
     };
   }, []);
 
+  const loadUser = async () => {
+    const userData = await AsyncStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      setUserId(user.id);
+      // Make sure socket is connected
+      socketService.connect(user.id);
+    }
+  };
+
   const setupSocketListeners = () => {
+    // Listen for ride completion
     socketService.on('rideCompleted', (data) => {
-      console.log('✅ Ride completed by driver');
+      console.log('✅ Ride completed by driver:', data);
       Alert.alert(
-        'Trip Completed!',
+        'Trip Completed! 🎉',
         'How was your experience?',
         [
           { 
@@ -33,22 +47,32 @@ export default function RiderTrackingScreen({ navigation, route }) {
               driver: driver 
             }) 
           }
-        ]
+        ],
+        { cancelable: false }
       );
     });
 
+    // Listen for ride cancellation
     socketService.on('rideCancelled', () => {
       Alert.alert('Ride Cancelled', 'Driver cancelled the ride', [
         { text: 'OK', onPress: () => navigation.replace('RiderHome') }
       ]);
     });
 
+    // FIXED: Listen for status updates from driver
     socketService.on('rideStatusUpdate', (data) => {
-      if (data.status === 'arrived') {
-        setStatus('Driver has arrived!');
-        setArrivalTime('Now');
-      } else if (data.status === 'started') {
-        setStatus('Trip in progress');
+      console.log('📡 Status update received:', data);
+      
+      if (data.rideId === rideId || !data.rideId) {
+        if (data.status === 'arrived') {
+          setStatus('🎯 Driver has arrived!');
+          setArrivalTime('Now');
+          Alert.alert('Driver Arrived', 'Your driver is waiting at the pickup location');
+        } else if (data.status === 'started') {
+          setStatus('🚀 Trip in progress');
+          setArrivalTime('En route');
+          Alert.alert('Trip Started', 'You are on your way to the destination');
+        }
       }
     });
   };
@@ -109,7 +133,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
               <Text style={styles.driverName}>{driver?.name || 'Driver'}</Text>
               <View style={styles.ratingContainer}>
                 <Text style={styles.ratingStar}>⭐</Text>
-                <Text style={styles.ratingText}>{driver?.rating || '4.9'} ({driver?.totalTrips || '234)'} trips)</Text>
+                <Text style={styles.ratingText}>{driver?.rating || '4.9'} ({driver?.totalTrips || '234'} trips)</Text>
               </View>
               <Text style={styles.genderText}>
                 {driver?.gender === 'female' ? '👩 Female Driver' : '👨 Male Driver'}
@@ -140,12 +164,13 @@ export default function RiderTrackingScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
 
+          {/* FIXED: Show pickup and destination locations */}
           <View style={styles.tripInfo}>
             <View style={styles.tripRow}>
               <Text style={styles.tripIcon}>📍</Text>
               <View style={styles.tripTextContainer}>
-                <Text style={styles.tripLabel}>Pickup</Text>
-                <Text style={styles.tripValue}>{pickup}</Text>
+                <Text style={styles.tripLabel}>Pickup Location</Text>
+                <Text style={styles.tripValue}>{pickup || 'Pickup location'}</Text>
               </View>
             </View>
             <View style={styles.tripDivider} />
@@ -153,7 +178,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
               <Text style={styles.tripIcon}>🎯</Text>
               <View style={styles.tripTextContainer}>
                 <Text style={styles.tripLabel}>Destination</Text>
-                <Text style={styles.tripValue}>{destination}</Text>
+                <Text style={styles.tripValue}>{destination || 'Destination'}</Text>
               </View>
             </View>
           </View>
@@ -173,7 +198,6 @@ export default function RiderTrackingScreen({ navigation, route }) {
   );
 }
 
-// FIXED: Proper StyleSheet definition
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.primary },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60 },
@@ -184,7 +208,7 @@ const styles = StyleSheet.create({
   arrivalTime: { fontSize: 28, fontWeight: 'bold', color: COLORS.accent },
   navigationIcon: { marginVertical: 20 },
   navigationIconText: { fontSize: 80 },
-  statusText: { fontSize: 18, color: COLORS.text },
+  statusText: { fontSize: 18, color: COLORS.text, textAlign: 'center' },
   driverCard: { backgroundColor: COLORS.secondary, marginHorizontal: 20, borderRadius: 20, padding: 25 },
   driverInfo: { flexDirection: 'row', marginBottom: 20 },
   driverAvatar: { width: 70, height: 70, borderRadius: 35, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
@@ -209,7 +233,7 @@ const styles = StyleSheet.create({
   tripIcon: { fontSize: 20, marginRight: 12, marginTop: 2 },
   tripTextContainer: { flex: 1 },
   tripLabel: { fontSize: 12, color: COLORS.text, opacity: 0.7, marginBottom: 4 },
-  tripValue: { fontSize: 14, color: COLORS.text },
+  tripValue: { fontSize: 14, color: COLORS.text, lineHeight: 20 },
   tripDivider: { height: 1, backgroundColor: COLORS.secondary, marginVertical: 5 },
   buttonSection: {},
   reportButton: { backgroundColor: COLORS.light, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 12 },
