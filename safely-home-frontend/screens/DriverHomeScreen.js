@@ -101,30 +101,39 @@ export default function DriverHomeScreen({ navigation }) {
     }
   };
 
-  const handleAcceptRide = async (rideId, rideData) => {
-    try {
-      const response = await acceptRide(rideId);
-      
-      Alert.alert('Ride Accepted!', 'Navigate to pickup location', [
-        { 
-          text: 'Start Navigation', 
-          onPress: () => {
-            // Navigate to driver tracking screen
-            navigation.navigate('DriverTracking', {
-              rideId: rideId,
-              rider: rideData.riderName ? { name: rideData.riderName, phone: rideData.riderPhone } : response.ride?.riderId,
-              pickup: rideData.pickup,
-              destination: rideData.destination
-            });
-          }
+const handleAcceptRide = async (rideId, rideData) => {
+  try {
+    const response = await acceptRide(rideId);
+
+    // Normalize rider object (from rideData OR response)
+    const rider =
+      rideData?.riderName && rideData?.riderPhone
+        ? { name: rideData.riderName, phone: rideData.riderPhone }
+        : response?.ride?.rider
+        ? { name: response.ride.rider.name, phone: response.ride.rider.phone }
+        : null;
+
+    Alert.alert('Ride Accepted!', 'Navigate to pickup location', [
+      {
+        text: 'Start Navigation',
+        onPress: () => {
+          navigation.navigate('DriverTracking', {
+            rideId: rideId,
+            rider: rider,
+            pickup: rideData.pickup,
+            destination: rideData.destination
+          });
         }
-      ]);
-      
-      loadAvailableRides();
-    } catch (error) {
-      Alert.alert('Error', error.response?.data?.error || 'Failed to accept ride');
-    }
-  };
+      }
+    ]);
+
+    loadAvailableRides();
+
+  } catch (error) {
+    Alert.alert('Error', error.response?.data?.error || 'Failed to accept ride');
+  }
+};
+
 
   const handleLogout = async () => {
     Alert.alert('Logout', 'Are you sure?', [

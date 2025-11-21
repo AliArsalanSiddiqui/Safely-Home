@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, FlatList } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS } from '../config';
+import { COLORS, GOOGLE_MAPS_API_KEY } from '../config';
 import { requestRide, updateLocation } from '../services/api';
 import socketService from '../services/socket';
 
@@ -17,7 +17,16 @@ export default function BookingScreen({ navigation, route }) {
   const [editingField, setEditingField] = useState(null);
   const [userId, setUserId] = useState(null);
   const [currentRideId, setCurrentRideId] = useState(null);
+  
+  // NEW: Autocomplete states
+  const [pickupSuggestions, setPickupSuggestions] = useState([]);
+  const [destinationSuggestions, setDestinationSuggestions] = useState([]);
+  const [showPickupSuggestions, setShowPickupSuggestions] = useState(false);
+  const [showDestinationSuggestions, setShowDestinationSuggestions] = useState(false);
+  
   const mapRef = useRef(null);
+  const pickupInputRef = useRef(null);
+  const destinationInputRef = useRef(null);
 
   useEffect(() => {
     getCurrentLocation();
@@ -77,37 +86,115 @@ export default function BookingScreen({ navigation, route }) {
     }
   };
 
+  // NEW: Address autocomplete function
+  const searchPlaces = async (query, field) => {
+    if (!query || query.length < 3) {
+      if (field === 'pickup') setPickupSuggestions([]);
+      if (field === 'destination') setDestinationSuggestions([]);
+      return;
+    }
+
+    try {
+      // Use current location as bias
+      const locationBias = currentLocation 
+        ? `${currentLocation.latitude},${currentLocation.longitude}`
+        : '';
+
+      // Google Places Autocomplete API
+      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&location=${locationBias}&radius=50000&key=${GOOGLE_MAPS_API_KEY}`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.predictions) {
+        const suggestions = data.predictions.map(pred => ({
+          description: pred.description,
+          placeId: pred.place_id
+        }));
+
+        if (field === 'pickup') {
+          setPickupSuggestions(suggestions);
+          setShowPickupSuggestions(true);
+        } else {
+          setDestinationSuggestions(suggestions);
+          setShowDestinationSuggestions(true);
+        }
+      }
+    } catch (error) {
+      console.error('Autocomplete error:', error);
+    }
+  };
+
+  // NEW: Select suggestion from autocomplete
+  const selectSuggestion = async (suggestion, field) => {
+    try {
+      // Get place details to get coordinates
+      const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${suggestion.placeId}&fields=geometry&key=${GOOGLE_MAPS_API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.result && data.result.geometry) {
+        const location = data.result.geometry.location;
+        const coords = {
+          latitude: location.lat,
+          longitude: location.lng
+        };
+
+        if (field === 'pickup') {
+          setPickup(suggestion.description);
+          setCurrentLocation(coords);
+          setShowPickupSuggestions(false);
+          setPickupSuggestions([]);
+        } else {
+          setDestination(suggestion.description);
+          setDestinationLocation(coords);
+          setShowDestinationSuggestions(false);
+          setDestinationSuggestions([]);
+        }
+
+        // Animate map to selected location
+        if (mapRef.current) {
+          mapRef.current.animateToRegion({
+            ...coords,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }, 1000);
+        }
+      }
+    } catch (error) {
+      console.error('Place details error:', error);
+      // Still set the address even if coordinates fail
+      if (field === 'pickup') {
+        setPickup(suggestion.description);
+        setShowPickupSuggestions(false);
+      } else {
+        setDestination(suggestion.description);
+        setShowDestinationSuggestions(false);
+      }
+    }
+  };
+
   const setupSocketListeners = () => {
     socketService.on('driverAccepted', (data) => {
-      console.log('✅ Driver accepted - Full data:', JSON.stringify(data, null, 2));
+      console.log('✅ Driver accepted:', data);
       setSearchingDriver(false);
       
-      // CRITICAL FIX: Ensure locations are strings
       const pickupLocation = pickup || 'Pickup location';
       const destinationLocation = destination || 'Destination';
       
-      console.log('Navigating with locations:', { 
-        pickup: pickupLocation, 
-        destination: destinationLocation 
-      });
-      
-      Alert.alert(
-        '🚗 Driver Found!',
-        `${data.driver.name} is coming to pick you up!`,
-        [
-          { 
-            text: 'View Details', 
-            onPress: () => {
-              navigation.replace('RiderTracking', { 
-                rideId: data.rideId || currentRideId,
-                driver: data.driver,
-                pickup: pickupLocation,
-                destination: destinationLocation
-              });
-            }
+      Alert.alert('🚗 Driver Found!', `${data.driver.name} is coming to pick you up!`, [
+        { 
+          text: 'View Details', 
+          onPress: () => {
+            navigation.replace('RiderTracking', { 
+              rideId: data.rideId || currentRideId,
+              driver: data.driver,
+              pickup: pickupLocation,
+              destination: destinationLocation
+            });
           }
-        ]
-      );
+        }
+      ]);
     });
 
     socketService.on('rideCancelled', () => {
@@ -175,27 +262,20 @@ export default function BookingScreen({ navigation, route }) {
         fare: 12.50
       };
 
-      console.log('📤 Requesting ride with data:', rideData);
-
       const response = await requestRide(rideData.pickup, rideData.destination, rideData.fare);
       
       if (response.success) {
         setCurrentRideId(response.rideId);
-        console.log('✅ Ride requested - RideId:', response.rideId);
-        Alert.alert(
-          'Finding Driver', 
-          `Looking for ${response.availableDrivers} available drivers nearby...`,
-          [
-            {
-              text: 'Cancel Search',
-              onPress: () => {
-                setSearchingDriver(false);
-                navigation.goBack();
-              },
-              style: 'cancel'
-            }
-          ]
-        );
+        Alert.alert('Finding Driver', `Looking for ${response.availableDrivers} available drivers...`, [
+          {
+            text: 'Cancel Search',
+            onPress: () => {
+              setSearchingDriver(false);
+              navigation.goBack();
+            },
+            style: 'cancel'
+          }
+        ]);
       }
     } catch (error) {
       setSearchingDriver(false);
@@ -231,25 +311,17 @@ export default function BookingScreen({ navigation, route }) {
           showsMyLocationButton={true}
         >
           {currentLocation && (
-            <Marker
-              coordinate={currentLocation}
-              title="Pickup Location"
-              pinColor={COLORS.accent}
-            />
+            <Marker coordinate={currentLocation} title="Pickup" pinColor={COLORS.accent} />
           )}
           {destinationLocation && (
-            <Marker
-              coordinate={destinationLocation}
-              title="Destination"
-              pinColor={COLORS.light}
-            />
+            <Marker coordinate={destinationLocation} title="Destination" pinColor={COLORS.light} />
           )}
         </MapView>
         
         {editingField && (
           <View style={styles.mapInstruction}>
             <Text style={styles.mapInstructionText}>
-              📍 Tap on the map to select {editingField === 'pickup' ? 'pickup' : 'destination'} location
+              📍 Tap map to select {editingField}
             </Text>
           </View>
         )}
@@ -263,45 +335,97 @@ export default function BookingScreen({ navigation, route }) {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled={true}
         >
           <View style={styles.locationInputContainer}>
-            <TouchableOpacity 
-              style={styles.inputWrapper}
-              onPress={() => setEditingField('pickup')}
-            >
+            <View style={styles.inputWrapper}>
               <Text style={styles.inputIcon}>📍</Text>
               <View style={styles.inputContent}>
                 <Text style={styles.inputLabel}>Pickup Location</Text>
                 <TextInput
+                  ref={pickupInputRef}
                   style={styles.input}
-                  placeholder="Tap to select on map or type"
+                  placeholder="Search or tap map"
                   placeholderTextColor="#999"
                   value={pickup}
-                  onChangeText={setPickup}
-                  onFocus={() => setEditingField(null)}
+                  onChangeText={(text) => {
+                    setPickup(text);
+                    searchPlaces(text, 'pickup');
+                  }}
+                  onFocus={() => {
+                    setEditingField(null);
+                    setShowDestinationSuggestions(true);
+                  }}
                 />
               </View>
-            </TouchableOpacity>
+            </View>
+
+            {/* Pickup Autocomplete Suggestions */}
+            {showPickupSuggestions && pickupSuggestions.length > 0 && (
+              <View style={styles.suggestionsContainer}>
+                <FlatList
+                  data={pickupSuggestions}
+                  keyExtractor={(item) => item.placeId}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.suggestionItem}
+                      onPress={() => selectSuggestion(item, 'pickup')}
+                    >
+                      <Text style={styles.suggestionIcon}>📍</Text>
+                      <Text style={styles.suggestionText}>{item.description}</Text>
+                    </TouchableOpacity>
+                  )}
+                  scrollEnabled={false}
+                  nestedScrollEnabled={true}
+                />
+              </View>
+            )}
 
             <View style={styles.divider} />
 
-            <TouchableOpacity 
-              style={styles.inputWrapper}
-              onPress={() => setEditingField('destination')}
-            >
+            <View style={styles.inputWrapper}>
               <Text style={styles.inputIcon}>🎯</Text>
               <View style={styles.inputContent}>
                 <Text style={styles.inputLabel}>Destination</Text>
                 <TextInput
-                  style={styles.input}
-                  placeholder="Tap to select on map or type"
-                  placeholderTextColor="#999"
-                  value={destination}
-                  onChangeText={setDestination}
-                  onFocus={() => setEditingField(null)}
+  ref={destinationInputRef}
+  style={styles.input}
+  placeholder="Search or tap map"
+  placeholderTextColor="#999"
+  value={destination}
+  onChangeText={(text) => {
+    setDestination(text);
+    searchPlaces(text, 'destination');
+  }}
+  onFocus={() => {
+    setEditingField('destination');      // ✅ FIX: allow map tap
+    setShowPickupSuggestions(false);
+  }}
+/>
+
+              </View>
+            </View>
+
+            {/* Destination Autocomplete Suggestions */}
+            {showDestinationSuggestions && destinationSuggestions.length > 0 && (
+              <View style={styles.suggestionsContainer}>
+                <FlatList
+                  data={destinationSuggestions}
+                  keyExtractor={(item) => item.placeId}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.suggestionItem}
+                      onPress={() => selectSuggestion(item, 'destination')}
+                    >
+                      <Text style={styles.suggestionIcon}>🎯</Text>
+                      <Text style={styles.suggestionText}>{item.description}</Text>
+                    </TouchableOpacity>
+                  )}
+                  scrollEnabled={false}
+                  nestedScrollEnabled={true}
                 />
               </View>
-            </TouchableOpacity>
+            )}
           </View>
 
           <View style={styles.estimateCard}>
@@ -321,7 +445,6 @@ export default function BookingScreen({ navigation, route }) {
             <View style={styles.searchingContainer}>
               <ActivityIndicator size="large" color={COLORS.accent} />
               <Text style={styles.searchingText}>Finding driver...</Text>
-              <Text style={styles.searchingSubtext}>Please wait</Text>
             </View>
           ) : (
             <TouchableOpacity
@@ -351,7 +474,7 @@ const styles = StyleSheet.create({
   map: { flex: 1 },
   mapInstruction: { position: 'absolute', top: 10, left: 20, right: 20, backgroundColor: COLORS.accent, padding: 15, borderRadius: 10 },
   mapInstructionText: { fontSize: 14, color: COLORS.textDark, fontWeight: 'bold', textAlign: 'center' },
-  bottomSheet: { backgroundColor: COLORS.secondary, borderTopLeftRadius: 30, borderTopRightRadius: 30, maxHeight: '50%' },
+  bottomSheet: { backgroundColor: COLORS.secondary, borderTopLeftRadius: 30, borderTopRightRadius: 30, maxHeight: '60%' },
   scrollContent: { padding: 25 },
   locationInputContainer: { backgroundColor: COLORS.primary, borderRadius: 15, padding: 5, marginBottom: 20 },
   inputWrapper: { flexDirection: 'row', alignItems: 'center', padding: 15 },
@@ -360,6 +483,10 @@ const styles = StyleSheet.create({
   inputLabel: { fontSize: 12, color: COLORS.text, opacity: 0.7, marginBottom: 5 },
   input: { fontSize: 16, color: COLORS.text, padding: 0 },
   divider: { height: 1, backgroundColor: COLORS.secondary, marginHorizontal: 15 },
+  suggestionsContainer: { backgroundColor: COLORS.secondary, borderRadius: 10, marginHorizontal: 10, marginBottom: 10, maxHeight: 200 },
+  suggestionItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: COLORS.primary },
+  suggestionIcon: { fontSize: 20, marginRight: 12 },
+  suggestionText: { flex: 1, fontSize: 14, color: COLORS.text },
   estimateCard: { backgroundColor: COLORS.primary, borderRadius: 12, padding: 15, marginBottom: 20 },
   estimateRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   estimateIcon: { fontSize: 20, marginRight: 10, width: 30 },
@@ -367,7 +494,6 @@ const styles = StyleSheet.create({
   estimateValue: { fontSize: 16, color: COLORS.accent, fontWeight: 'bold' },
   searchingContainer: { alignItems: 'center', padding: 20 },
   searchingText: { marginTop: 10, fontSize: 16, color: COLORS.text, fontWeight: 'bold' },
-  searchingSubtext: { marginTop: 5, fontSize: 14, color: COLORS.text, opacity: 0.7 },
   confirmButton: { backgroundColor: COLORS.accent, borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
   confirmButtonText: { fontSize: 18, fontWeight: 'bold', color: COLORS.textDark },
 });

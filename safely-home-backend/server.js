@@ -706,6 +706,8 @@ app.get('/api/driver/earnings', authenticateToken, async (req, res) => {
 // Socket.io
 const connectedUsers = new Map();
 
+const chatMessages = new Map(); // rideId -> messages[]
+
 io.on('connection', (socket) => {
   console.log('👤 User connected:', socket.id);
 
@@ -761,6 +763,36 @@ io.on('connection', (socket) => {
     }
   } catch (error) {
     console.error('❌ Status update error:', error);
+  }
+});
+
+socket.on('sendMessage', (message) => {
+  try {
+    console.log('💬 Message received:', message);
+    
+    const { rideId, senderId, senderName, text, timestamp } = message;
+    
+    // Store message
+    if (!chatMessages.has(rideId)) {
+      chatMessages.set(rideId, []);
+    }
+    chatMessages.get(rideId).push(message);
+    
+    // Broadcast to all users in this ride
+    io.emit('newMessage', message);
+    
+    console.log('✅ Message broadcasted');
+  } catch (error) {
+    console.error('❌ Send message error:', error);
+  }
+});
+socket.on('getChatHistory', ({ rideId }) => {
+  try {
+    const history = chatMessages.get(rideId) || [];
+    socket.emit('messageHistory', history);
+    console.log(`📜 Sent ${history.length} messages for ride ${rideId}`);
+  } catch (error) {
+    console.error('❌ Get chat history error:', error);
   }
 });
 });

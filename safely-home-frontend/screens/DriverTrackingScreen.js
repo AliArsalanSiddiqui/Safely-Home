@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, Linking, Platform } from 'react-native';
 import { COLORS } from '../config';
 import { completeRide, cancelRide } from '../services/api';
 import socketService from '../services/socket';
@@ -7,14 +7,28 @@ import socketService from '../services/socket';
 export default function DriverTrackingScreen({ navigation, route }) {
   const { rideId, rider, pickup, destination } = route.params;
   const [rideStatus, setRideStatus] = useState('heading_to_pickup');
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [userId, setUserId] = useState(null);
 
   useEffect(() => {
+    console.log('Rider object:', rider);
+
+    loadUser();
     setupSocketListeners();
     
     return () => {
       socketService.off('rideCancelled');
+      socketService.off('newMessage');
     };
   }, []);
+
+  const loadUser = async () => {
+    const userData = await AsyncStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      setUserId(user.id);
+    }
+  };
 
   const setupSocketListeners = () => {
     socketService.on('rideCancelled', () => {
@@ -22,111 +36,155 @@ export default function DriverTrackingScreen({ navigation, route }) {
         { text: 'OK', onPress: () => navigation.replace('DriverHome') }
       ]);
     });
+
+    socketService.on('newMessage', (message) => {
+      if (message.rideId === rideId && message.senderId !== userId) {
+        setUnreadMessages(prev => prev + 1);
+      }
+    });
+  };
+
+  // FIXED: Call rider - Opens phone dialer
+  const handleCallRider = () => {
+    const phoneNumber = rider.phone;
+    if (!phoneNumber) {
+      Alert.alert('Error', 'Rider phone number not available');
+      return;
+    }
+
+    Alert.alert(
+      'Call Rider',
+      `Do you want to call ${rider.name}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Call',
+          onPress: () => {
+            const url = `tel:${phoneNumber}`;
+            Linking.canOpenURL(url)
+              .then((supported) => {
+                if (supported) {
+                  return Linking.openURL(url);
+                } else {
+                  Alert.alert('Error', 'Unable to make phone calls on this device');
+                }
+              })
+              .catch((err) => {
+                console.error('Error opening dialer:', err);
+                Alert.alert('Error', 'Failed to open phone dialer');
+              });
+          }
+        }
+      ]
+    );
+  };
+
+  // NEW: Open chat
+  const handleOpenChat = () => {
+    setUnreadMessages(0);
+    navigation.navigate('Chat', {
+      rideId: rideId,
+      otherUser: rider,
+      userType: 'driver'
+    });
+  };
+
+  // NEW: Open Google Maps for navigation
+  const openGoogleMaps = (location, label) => {
+    if (!location) {
+      Alert.alert('Error', 'Location not available');
+      return;
+    }
+
+    // Try to parse coordinates from location string if needed
+    const url = Platform.select({
+      ios: `maps://app?daddr=${encodeURIComponent(location)}&dirflg=d`,
+      android: `google.navigation:q=${encodeURIComponent(location)}&mode=d`
+    });
+
+    const fallbackUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(location)}&travelmode=driving`;
+
+    Linking.canOpenURL(url)
+      .then((supported) => {
+        if (supported) {
+          return Linking.openURL(url);
+        } else {
+          // Fallback to web URL
+          return Linking.openURL(fallbackUrl);
+        }
+      })
+      .catch((err) => {
+        console.error('Error opening maps:', err);
+        // Try fallback
+        Linking.openURL(fallbackUrl).catch(() => {
+          Alert.alert('Error', 'Unable to open maps');
+        });
+      });
   };
 
   const handleArrivedAtPickup = () => {
     setRideStatus('at_pickup');
-    
-    // FIXED: Emit status update to backend/rider
-    console.log('📡 Emitting: arrived status');
-    socketService.emit('rideStatusUpdate', { 
-      rideId: rideId, 
-      status: 'arrived' 
-    });
-    
+    socketService.emit('rideStatusUpdate', { rideId: rideId, status: 'arrived' });
     Alert.alert('Great! 👍', 'Let the rider know you have arrived');
   };
 
   const handleStartTrip = () => {
-    Alert.alert(
-      'Start Trip',
-      'Have you picked up the rider?',
-      [
-        { text: 'Not Yet', style: 'cancel' },
-        {
-          text: 'Yes, Start Trip',
-          onPress: () => {
-            setRideStatus('in_progress');
-            
-            // FIXED: Emit status update to backend/rider
-            console.log('📡 Emitting: started status');
-            socketService.emit('rideStatusUpdate', { 
-              rideId: rideId, 
-              status: 'started' 
-            });
-            
-            Alert.alert('Trip Started 🚀', 'Navigate to destination');
-          }
+    Alert.alert('Start Trip', 'Have you picked up the rider?', [
+      { text: 'Not Yet', style: 'cancel' },
+      {
+        text: 'Yes, Start Trip',
+        onPress: () => {
+          setRideStatus('in_progress');
+          socketService.emit('rideStatusUpdate', { rideId: rideId, status: 'started' });
+          Alert.alert('Trip Started 🚀', 'Navigate to destination');
         }
-      ]
-    );
+      }
+    ]);
   };
 
   const handleCompleteRide = () => {
-    Alert.alert(
-      'Complete Ride',
-      'Have you reached the destination?',
-      [
-        { text: 'Not Yet', style: 'cancel' },
-        {
-          text: 'Yes, Complete',
-          onPress: async () => {
-            try {
-              console.log('✅ Completing ride:', rideId);
-              await completeRide(rideId);
-              
-              Alert.alert(
-                '✅ Ride Completed!',
-                'Great job! Earnings: $10.00 will be added to your account.',
-                [
-                  { 
-                    text: 'Back to Home', 
-                    onPress: () => navigation.replace('DriverHome') 
-                  }
-                ]
-              );
-            } catch (error) {
-              console.error('Complete ride error:', error);
-              Alert.alert('Error', 'Failed to complete ride. Please try again.');
-            }
+    Alert.alert('Complete Ride', 'Have you reached the destination?', [
+      { text: 'Not Yet', style: 'cancel' },
+      {
+        text: 'Yes, Complete',
+        onPress: async () => {
+          try {
+            await completeRide(rideId);
+            Alert.alert('✅ Ride Completed!', 'Great job! Earnings: $10.00', [
+              { text: 'Back to Home', onPress: () => navigation.replace('DriverHome') }
+            ]);
+          } catch (error) {
+            Alert.alert('Error', 'Failed to complete ride');
           }
         }
-      ]
-    );
+      }
+    ]);
   };
 
   const handleCancelRide = () => {
-    Alert.alert(
-      'Cancel Ride',
-      'Are you sure you want to cancel this ride? This may affect your rating.',
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Yes, Cancel',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await cancelRide(rideId);
-              navigation.replace('DriverHome');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to cancel ride');
-            }
+    Alert.alert('Cancel Ride', 'This may affect your rating.', [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Yes, Cancel',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await cancelRide(rideId);
+            navigation.replace('DriverHome');
+          } catch (error) {
+            Alert.alert('Error', 'Failed to cancel ride');
           }
         }
-      ]
-    );
+      }
+    ]);
   };
 
   const getStatusText = () => {
     switch (rideStatus) {
-      case 'heading_to_pickup':
-        return 'Navigate to pickup location';
-      case 'at_pickup':
-        return 'Waiting for rider';
-      case 'in_progress':
-        return 'Trip in progress - Navigate to destination';
-      default:
-        return 'Navigate to pickup location';
+      case 'heading_to_pickup': return 'Navigate to pickup location';
+      case 'at_pickup': return 'Waiting for rider';
+      case 'in_progress': return 'Trip in progress - Navigate to destination';
+      default: return 'Navigate to pickup location';
     }
   };
 
@@ -150,8 +208,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
             <Text style={styles.primaryButtonText}>✓ Complete Ride</Text>
           </TouchableOpacity>
         );
-      default:
-        return null;
+      default: return null;
     }
   };
 
@@ -186,30 +243,39 @@ export default function DriverTrackingScreen({ navigation, route }) {
             </View>
             <View style={styles.riderDetails}>
               <Text style={styles.riderName}>{rider?.name || 'Rider'}</Text>
-              <Text style={styles.riderPhone}>📞 {rider?.phone || 'Phone number'}</Text>
+              <Text style={styles.riderPhone}>📞 {rider?.phone || 'Phone'}</Text>
             </View>
           </View>
 
+          {/* UPDATED: Call and Message buttons */}
           <View style={styles.riderActions}>
-            <TouchableOpacity style={styles.actionButton} onPress={() => Alert.alert('Calling...', rider?.phone)}>
+            <TouchableOpacity style={styles.actionButton} onPress={handleCallRider}>
               <Text style={styles.actionIcon}>📞</Text>
               <Text style={styles.actionLabel}>Call Rider</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton} onPress={() => Alert.alert('Messaging...', 'Opening chat')}>
+            <TouchableOpacity style={styles.actionButton} onPress={handleOpenChat}>
               <Text style={styles.actionIcon}>💬</Text>
               <Text style={styles.actionLabel}>Message</Text>
+              {unreadMessages > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadMessages}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
 
-          {/* FIXED: Show pickup and destination locations */}
+          {/* UPDATED: Trip info with Google Maps navigation */}
           <View style={styles.tripInfo}>
             <View style={styles.tripRow}>
               <Text style={styles.tripIcon}>📍</Text>
               <View style={styles.tripTextContainer}>
                 <Text style={styles.tripLabel}>Pickup Location</Text>
-                <Text style={styles.tripValue}>{pickup || 'Pickup location'}</Text>
+                <Text style={styles.tripValue}>{pickup || 'Pickup'}</Text>
               </View>
-              <TouchableOpacity style={styles.navigateButton} onPress={() => Alert.alert('Navigation', 'Opening maps...')}>
+              <TouchableOpacity 
+                style={styles.navigateButton} 
+                onPress={() => openGoogleMaps(pickup, 'Pickup')}
+              >
                 <Text style={styles.navigateButtonText}>Navigate</Text>
               </TouchableOpacity>
             </View>
@@ -222,7 +288,10 @@ export default function DriverTrackingScreen({ navigation, route }) {
                 <Text style={styles.tripLabel}>Destination</Text>
                 <Text style={styles.tripValue}>{destination || 'Destination'}</Text>
               </View>
-              <TouchableOpacity style={styles.navigateButton} onPress={() => Alert.alert('Navigation', 'Opening maps...')}>
+              <TouchableOpacity 
+                style={styles.navigateButton} 
+                onPress={() => openGoogleMaps(destination, 'Destination')}
+              >
                 <Text style={styles.navigateButtonText}>Navigate</Text>
               </TouchableOpacity>
             </View>
@@ -243,7 +312,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
             {getActionButton()}
 
             <View style={styles.secondaryButtons}>
-              <TouchableOpacity style={styles.emergencyButton} onPress={() => Alert.alert('Emergency', 'Calling emergency services...')}>
+              <TouchableOpacity style={styles.emergencyButton} onPress={() => Alert.alert('Emergency', 'Calling emergency...')}>
                 <Text style={styles.emergencyButtonText}>🚨 Emergency</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.cancelButton} onPress={handleCancelRide}>
@@ -282,9 +351,11 @@ const styles = StyleSheet.create({
   riderName: { fontSize: 20, fontWeight: 'bold', color: COLORS.text, marginBottom: 5 },
   riderPhone: { fontSize: 14, color: COLORS.text, opacity: 0.8 },
   riderActions: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 20 },
-  actionButton: { alignItems: 'center', backgroundColor: COLORS.primary, padding: 15, borderRadius: 12, minWidth: 100 },
+  actionButton: { alignItems: 'center', backgroundColor: COLORS.primary, padding: 15, borderRadius: 12, minWidth: 100, position: 'relative' },
   actionIcon: { fontSize: 28, marginBottom: 5 },
   actionLabel: { fontSize: 12, color: COLORS.text, fontWeight: '600' },
+  badge: { position: 'absolute', top: 8, right: 8, backgroundColor: COLORS.light, borderRadius: 10, minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center' },
+  badgeText: { color: COLORS.textDark, fontSize: 12, fontWeight: 'bold' },
   tripInfo: { backgroundColor: COLORS.primary, borderRadius: 15, padding: 15, marginBottom: 20 },
   tripRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 10 },
   tripIcon: { fontSize: 20, marginRight: 12, marginTop: 2 },

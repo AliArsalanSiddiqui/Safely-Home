@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../config';
 import { cancelRide } from '../services/api';
 import socketService from '../services/socket';
 
 export default function RiderTrackingScreen({ navigation, route }) {
-  // CRITICAL FIX: Get locations from route params
   const params = route.params || {};
   const rideId = params.rideId;
   const driver = params.driver || {};
@@ -16,13 +15,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
   const [status, setStatus] = useState('Driver is on the way');
   const [arrivalTime, setArrivalTime] = useState('5 mins');
   const [userId, setUserId] = useState(null);
-
-  console.log('🚗 RiderTracking mounted with params:', {
-    rideId,
-    driver: driver.name,
-    pickup: pickupLocation,
-    destination: destinationLocation
-  });
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   useEffect(() => {
     loadUser();
@@ -32,6 +25,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
       socketService.off('rideCompleted');
       socketService.off('rideCancelled');
       socketService.off('rideStatusUpdate');
+      socketService.off('newMessage');
     };
   }, []);
 
@@ -42,7 +36,6 @@ export default function RiderTrackingScreen({ navigation, route }) {
         const user = JSON.parse(userData);
         setUserId(user.id);
         socketService.connect(user.id);
-        console.log('✅ Socket connected for rider:', user.id);
       }
     } catch (error) {
       console.error('Error loading user:', error);
@@ -50,72 +43,99 @@ export default function RiderTrackingScreen({ navigation, route }) {
   };
 
   const setupSocketListeners = () => {
-    // Ride completion
     socketService.on('rideCompleted', (data) => {
-      console.log('✅ Ride completed:', data);
-      Alert.alert(
-        'Trip Completed! 🎉',
-        'How was your experience?',
-        [
-          { 
-            text: 'Rate Trip', 
-            onPress: () => navigation.replace('Rating', { 
-              rideId: rideId, 
-              driver: driver 
-            }) 
-          }
-        ],
-        { cancelable: false }
-      );
+      Alert.alert('Trip Completed! 🎉', 'How was your experience?', [
+        { text: 'Rate Trip', onPress: () => navigation.replace('Rating', { rideId, driver }) }
+      ], { cancelable: false });
     });
 
-    // Ride cancellation
     socketService.on('rideCancelled', (data) => {
-      console.log('❌ Ride cancelled:', data);
       Alert.alert('Ride Cancelled', 'Driver cancelled the ride', [
         { text: 'OK', onPress: () => navigation.replace('RiderHome') }
       ]);
     });
 
-    // CRITICAL FIX: Status updates from driver
     socketService.on('rideStatusUpdate', (data) => {
-      console.log('📡 Status update received in RiderTracking:', data);
-      
-      // Update regardless of rideId match (in case it's missing)
       if (data.status === 'arrived') {
-        setStatus('🎯 Driver has arrived! ');
+        setStatus('🎯 Driver has arrived!');
         setArrivalTime('Now');
-        console.log('✅ Updated status to ARRIVED');
         Alert.alert('Driver Arrived', 'Your driver is waiting at the pickup location');
       } else if (data.status === 'started') {
         setStatus('🚀 Trip in progress');
         setArrivalTime('En route');
-        console.log('✅ Updated status to STARTED');
         Alert.alert('Trip Started', 'You are on your way to the destination');
+      }
+    });
+
+    // Listen for new messages
+    socketService.on('newMessage', (message) => {
+      if (message.rideId === rideId && message.senderId !== userId) {
+        setUnreadMessages(prev => prev + 1);
       }
     });
   };
 
-  const handleCancelRide = () => {
+  // FIXED: Call driver - Opens phone dialer
+  const handleCallDriver = () => {
+    const phoneNumber = driver.phone;
+    if (!phoneNumber) {
+      Alert.alert('Error', 'Driver phone number not available');
+      return;
+    }
+
     Alert.alert(
-      'Cancel Ride',
-      'Are you sure you want to cancel this ride?',
+      'Call Driver',
+      `Do you want to call ${driver.name}?`,
       [
-        { text: 'No', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Yes, Cancel',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await cancelRide(rideId);
-              navigation.replace('RiderHome');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to cancel ride');
-            }
+          text: 'Call',
+          onPress: () => {
+            const url = `tel:${phoneNumber}`;
+            Linking.canOpenURL(url)
+              .then((supported) => {
+                if (supported) {
+                  return Linking.openURL(url);
+                } else {
+                  Alert.alert('Error', 'Unable to make phone calls on this device');
+                }
+              })
+              .catch((err) => {
+                console.error('Error opening dialer:', err);
+                Alert.alert('Error', 'Failed to open phone dialer');
+              });
           }
         }
       ]
     );
+  };
+
+  // NEW: Open chat
+  const handleOpenChat = () => {
+    setUnreadMessages(0);
+    navigation.navigate('Chat', {
+      rideId: rideId,
+      otherUser: driver,
+      userType: 'rider'
+    });
+  };
+
+  const handleCancelRide = () => {
+    Alert.alert('Cancel Ride', 'Are you sure you want to cancel this ride?', [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Yes, Cancel',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await cancelRide(rideId);
+            navigation.replace('RiderHome');
+          } catch (error) {
+            Alert.alert('Error', 'Failed to cancel ride');
+          }
+        }
+      }
+    ]);
   };
 
   const handleReportIssue = () => {
@@ -153,7 +173,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
               <View style={styles.ratingContainer}>
                 <Text style={styles.ratingStar}>⭐</Text>
                 <Text style={styles.ratingText}>
-                  {driver.rating ? Number(driver.rating).toFixed(1) : '0.0'} • {driver.totalRides || 0} rides </Text>
+                  {driver.rating ? Number(driver.rating).toFixed(1) : '0.0'} • ({driver.totalRides || 0}) rides </Text>
               </View>
               <Text style={styles.genderText}>
                 {driver.gender === 'female' ? '👩 Female Driver' : '👨 Male Driver'}
@@ -164,23 +184,25 @@ export default function RiderTrackingScreen({ navigation, route }) {
           <View style={styles.vehicleInfoCard}>
             <Text style={styles.vehicleIcon}>🚗</Text>
             <View style={styles.vehicleDetails}>
-              <Text style={styles.vehicleText}>
-                {driver.vehicleInfo?.model || 'Vehicle information'}
-              </Text>
-              <Text style={styles.vehiclePlate}>
-                {driver.vehicleInfo?.licensePlate || 'License plate'}
-              </Text>
+              <Text style={styles.vehicleText}>{driver.vehicleInfo?.model || 'Vehicle'}</Text>
+              <Text style={styles.vehiclePlate}>{driver.vehicleInfo?.licensePlate || 'License'}</Text>
             </View>
           </View>
 
+          {/* UPDATED: Call and Message buttons */}
           <View style={styles.driverActions}>
-            <TouchableOpacity style={styles.actionButton} onPress={() => Alert.alert('Calling...', driver.phone)}>
+            <TouchableOpacity style={styles.actionButton} onPress={handleCallDriver}>
               <Text style={styles.actionIcon}>📞</Text>
               <Text style={styles.actionLabel}>Call</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton} onPress={() => Alert.alert('Messaging...', 'Opening chat')}>
+            <TouchableOpacity style={styles.actionButton} onPress={handleOpenChat}>
               <Text style={styles.actionIcon}>💬</Text>
               <Text style={styles.actionLabel}>Message</Text>
+              {unreadMessages > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadMessages}</Text>
+                </View>
+              )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionButton} onPress={() => Alert.alert('Share', 'Sharing ride details...')}>
               <Text style={styles.actionIcon}>📤</Text>
@@ -188,7 +210,6 @@ export default function RiderTrackingScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
 
-          {/* CRITICAL FIX: Display pickup and destination */}
           <View style={styles.tripInfo}>
             <View style={styles.tripRow}>
               <Text style={styles.tripIcon}>📍</Text>
@@ -211,7 +232,6 @@ export default function RiderTrackingScreen({ navigation, route }) {
             <TouchableOpacity style={styles.reportButton} onPress={handleReportIssue}>
               <Text style={styles.reportButtonText}>🚨 Report Safety Issue</Text>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.cancelButton} onPress={handleCancelRide}>
               <Text style={styles.cancelButtonText}>Cancel Ride</Text>
             </TouchableOpacity>
@@ -249,9 +269,11 @@ const styles = StyleSheet.create({
   vehicleText: { fontSize: 16, color: COLORS.text, fontWeight: 'bold', marginBottom: 3 },
   vehiclePlate: { fontSize: 14, color: COLORS.accent, fontWeight: 'bold' },
   driverActions: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 20 },
-  actionButton: { alignItems: 'center', backgroundColor: COLORS.primary, padding: 15, borderRadius: 12, minWidth: 80 },
+  actionButton: { alignItems: 'center', backgroundColor: COLORS.primary, padding: 15, borderRadius: 12, minWidth: 80, position: 'relative' },
   actionIcon: { fontSize: 28, marginBottom: 5 },
   actionLabel: { fontSize: 12, color: COLORS.text, fontWeight: '600' },
+  badge: { position: 'absolute', top: 8, right: 8, backgroundColor: COLORS.light, borderRadius: 10, minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center' },
+  badgeText: { color: COLORS.textDark, fontSize: 12, fontWeight: 'bold' },
   tripInfo: { backgroundColor: COLORS.primary, borderRadius: 15, padding: 15, marginBottom: 20 },
   tripRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 10 },
   tripIcon: { fontSize: 20, marginRight: 12, marginTop: 2 },
