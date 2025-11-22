@@ -1,14 +1,21 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, Alert, ScrollView } from 'react-native';
-import { COLORS } from '../config';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, Alert, ScrollView, Linking, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
+import { COLORS, API_URL } from '../config';
 
 export default function ReportIssueScreen({ navigation, route }) {
-  const { ride } = route.params || {};
+  const params = route.params || {};
+  const rideId = params.rideId;
+  const driver = params.driver || {};
+  
+  // ✅ FIXED: Get trip details
+  const [rideDetails, setRideDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState(null);
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [description, setDescription] = useState('');
-
-  const driver = ride?.driver || { name: 'Sarah Johnson' };
-  const tripId = ride?.rideId || '#3104789';
+  const [submitting, setSubmitting] = useState(false);
 
   const issues = [
     { id: 'safety', icon: '🚨', label: 'Safety Concern' },
@@ -19,22 +26,88 @@ export default function ReportIssueScreen({ navigation, route }) {
     { id: 'other', icon: '📝', label: 'Other Issue' },
   ];
 
-  const handleEmergency = () => {
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const tokenData = await AsyncStorage.getItem('token');
+      setToken(tokenData);
+
+      if (rideId && tokenData) {
+        await fetchRideDetails(tokenData);
+      } else {
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setLoading(false);
+    }
+  };
+
+  // ✅ NEW: Fetch actual ride details
+  const fetchRideDetails = async (authToken) => {
+    try {
+      console.log('📡 Fetching ride details for report:', rideId);
+      
+      const response = await fetch(`${API_URL}/rides/${rideId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const ride = data.ride || data;
+        
+        console.log('✅ Ride details loaded:', ride);
+        setRideDetails(ride);
+      } else {
+        console.log('⚠️ Could not fetch ride details');
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch ride details:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ FIXED: Proper emergency call function
+  const handleEmergency = async () => {
     Alert.alert(
-      'Emergency Services',
+      '🚨 Emergency Services',
       'This will call emergency services immediately.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Call Emergency',
+          text: 'Call 911',
           style: 'destructive',
-          onPress: () => Alert.alert('Emergency', 'Calling emergency services (911)...')
+          onPress: () => {
+            const emergencyNumber = '911';
+            const url = `tel:${emergencyNumber}`;
+            
+            Linking.canOpenURL(url)
+              .then((supported) => {
+                if (supported) {
+                  Linking.openURL(url);
+                } else {
+                  Alert.alert('Error', 'Unable to make emergency call on this device');
+                }
+              })
+              .catch((err) => {
+                console.error('Error calling emergency:', err);
+                Alert.alert('Error', 'Failed to call emergency services');
+              });
+          }
         }
       ]
     );
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedIssue) {
       Alert.alert('Error', 'Please select an issue type');
       return;
@@ -45,13 +118,73 @@ export default function ReportIssueScreen({ navigation, route }) {
       return;
     }
 
-    Alert.alert(
-      'Report Submitted',
-      'Your safety report has been submitted. Our team will investigate immediately.',
-      [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]
+    setSubmitting(true);
+
+    try {
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({});
+      
+      const reportData = {
+        rideId: rideId,
+        issueType: selectedIssue,
+        description: description.trim(),
+        driverName: driver?.name || 'Unknown',
+        driverId: driver?.id || null,
+        location: {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      console.log('📝 Submitting report:', reportData);
+
+      // Save report locally
+      const existingReports = await AsyncStorage.getItem('reports');
+      const reports = existingReports ? JSON.parse(existingReports) : [];
+      reports.push(reportData);
+      await AsyncStorage.setItem('reports', JSON.stringify(reports));
+
+      Alert.alert(
+        'Report Submitted',
+        'Your safety report has been submitted. Our team will investigate immediately.',
+        [
+          { text: 'OK', onPress: () => navigation.goBack() }
+        ]
+      );
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      Alert.alert('Error', 'Failed to submit report. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={styles.backButton}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Report an Issue</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.accent} />
+          <Text style={styles.loadingText}>Loading ride details...</Text>
+        </View>
+      </View>
     );
+  }
+
+  // ✅ Get formatted date and time
+  const getRideDateTime = () => {
+    if (rideDetails?.createdAt) {
+      const date = new Date(rideDetails.createdAt);
+      return date.toLocaleString();
+    }
+    return 'Date not available';
   };
 
   return (
@@ -67,13 +200,15 @@ export default function ReportIssueScreen({ navigation, route }) {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.subtitle}>Your safety is our priority. Report any concerns immediately.</Text>
 
+        {/* ✅ FIXED: Display actual trip details */}
         <View style={styles.tripInfo}>
           <Text style={styles.tripInfoLabel}>Trip Details</Text>
-          <Text style={styles.tripInfoText}>Trip ID: {tripId}</Text>
-          <Text style={styles.tripInfoText}>Driver: {driver.name}</Text>
-          <Text style={styles.tripInfoText}>Date: Oct 15, 2025 • 2:30 PM</Text>
+          <Text style={styles.tripInfoText}>Trip ID: {rideId?.slice(-6) || '#XXXXX'}</Text>
+          <Text style={styles.tripInfoText}>Driver: {driver?.name || rideDetails?.driverId?.name || 'Unknown'}</Text>
+          <Text style={styles.tripInfoText}>Date: {getRideDateTime()}</Text>
         </View>
 
+        {/* ✅ FIXED: Emergency button now actually calls 911 */}
         <TouchableOpacity style={styles.emergencyButton} onPress={handleEmergency}>
           <Text style={styles.emergencyIcon}>🚨</Text>
           <View style={styles.emergencyTextContainer}>
@@ -116,8 +251,14 @@ export default function ReportIssueScreen({ navigation, route }) {
           We take your safety seriously.
         </Text>
 
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitButtonText}>Submit Report</Text>
+        <TouchableOpacity 
+          style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={submitting}
+        >
+          <Text style={styles.submitButtonText}>
+            {submitting ? 'Submitting...' : 'Submit Report'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -126,6 +267,8 @@ export default function ReportIssueScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.primary },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 10, fontSize: 16, color: COLORS.text },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60 },
   backButton: { fontSize: 30, color: COLORS.accent },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.light },
@@ -149,5 +292,6 @@ const styles = StyleSheet.create({
   descriptionInput: { backgroundColor: COLORS.secondary, borderRadius: 12, padding: 15, color: COLORS.text, fontSize: 14, height: 120, marginBottom: 15, borderWidth: 1, borderColor: COLORS.accent + '30' },
   disclaimer: { fontSize: 12, color: COLORS.text, opacity: 0.7, textAlign: 'center', marginBottom: 20, lineHeight: 18 },
   submitButton: { backgroundColor: COLORS.accent, borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
+  submitButtonDisabled: { opacity: 0.5 },
   submitButtonText: { fontSize: 16, fontWeight: 'bold', color: COLORS.textDark },
 });

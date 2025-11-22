@@ -64,6 +64,12 @@ export default function BookingScreen({ navigation, route }) {
     };
   }, []);
 
+  useEffect(() => {
+  if (userId && token) {
+    setupSocketListeners();
+  }
+}, [userId, token]);
+
   // When either coordinate changes, recalc fare/eta
   useEffect(() => {
     if (currentLocation && destinationLocation) {

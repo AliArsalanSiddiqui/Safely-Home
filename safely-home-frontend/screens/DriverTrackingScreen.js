@@ -11,7 +11,6 @@ export default function DriverTrackingScreen({ navigation, route }) {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [userId, setUserId] = useState(null);
   
-  // ✅ FIXED: Add state for ride details & token
   const [rideDetails, setRideDetails] = useState(null);
   const [token, setToken] = useState(null);
   const [riderInfo, setRiderInfo] = useState(rider || {});
@@ -33,39 +32,11 @@ export default function DriverTrackingScreen({ navigation, route }) {
     };
   }, []);
 
-  // ✅ NEW: Fetch ride details from backend with dynamic fare
   useEffect(() => {
-    const fetchRideDetails = async () => {
-      if (!rideId || !token) return;
-
-      try {
-        console.log('📡 Fetching ride details for:', rideId);
-        
-        const response = await fetch(`${API_URL}/rides/${rideId}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log('✅ Ride details fetched:', data);
-          setRideDetails(data.ride || data);
-        } else {
-          console.log('⚠️ Could not fetch ride details, using defaults');
-        }
-      } catch (error) {
-        console.error('❌ Failed to fetch ride details:', error);
-        // Use default values if fetch fails
-      }
-    };
-
-    if (rideId && token) {
+    if (token && rideId) {
       fetchRideDetails();
     }
-  }, [rideId, token]);
+  }, [token, rideId]);
 
   const loadUser = async () => {
     const userData = await AsyncStorage.getItem('user');
@@ -78,6 +49,30 @@ export default function DriverTrackingScreen({ navigation, route }) {
     
     if (tokenData) {
       setToken(tokenData);
+    }
+  };
+
+  const fetchRideDetails = async () => {
+    if (!rideId || !token) return;
+
+    try {
+      console.log('📡 Fetching ride details for:', rideId);
+      
+      const response = await fetch(`${API_URL}/rides/${rideId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Ride details fetched:', data);
+        setRideDetails(data.ride || data);
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch ride details:', error);
     }
   };
 
@@ -230,6 +225,41 @@ export default function DriverTrackingScreen({ navigation, route }) {
     ]);
   };
 
+  // ✅ FIXED: Proper emergency 911 call function
+  const handleEmergency = () => {
+    Alert.alert(
+      '🚨 Emergency Services',
+      'This will call emergency services immediately.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Call 911',
+          style: 'destructive',
+          onPress: () => {
+            const emergencyNumber = '911';
+            const url = `tel:${emergencyNumber}`;
+            
+            console.log('📞 Attempting to call emergency:', emergencyNumber);
+            
+            Linking.canOpenURL(url)
+              .then((supported) => {
+                if (supported) {
+                  console.log('✅ Opening emergency dialer...');
+                  Linking.openURL(url);
+                } else {
+                  Alert.alert('Error', 'Unable to make emergency call on this device');
+                }
+              })
+              .catch((err) => {
+                console.error('Error calling emergency:', err);
+                Alert.alert('Error', 'Failed to call emergency services');
+              });
+          }
+        }
+      ]
+    );
+  };
+
   const getStatusText = () => {
     switch (rideStatus) {
       case 'heading_to_pickup': return 'Navigate to pickup location';
@@ -263,7 +293,6 @@ export default function DriverTrackingScreen({ navigation, route }) {
     }
   };
 
-  // ✅ Calculate fare and earnings dynamically
   const fare = rideDetails?.fare || 12.50;
   const earnings = (fare * 0.80).toFixed(2);
 
@@ -350,7 +379,6 @@ export default function DriverTrackingScreen({ navigation, route }) {
             </View>
           </View>
 
-          {/* ✅ FIXED: Now shows dynamic fare and earnings */}
           <View style={styles.fareInfo}>
             <View style={styles.fareRow}>
               <Text style={styles.fareLabel}>Trip Fare</Text>
@@ -378,7 +406,8 @@ export default function DriverTrackingScreen({ navigation, route }) {
             {getActionButton()}
 
             <View style={styles.secondaryButtons}>
-              <TouchableOpacity style={styles.emergencyButton} onPress={() => Alert.alert('Emergency', 'Calling emergency...')}>
+              {/* ✅ FIXED: Emergency button now actually calls 911 */}
+              <TouchableOpacity style={styles.emergencyButton} onPress={handleEmergency}>
                 <Text style={styles.emergencyButtonText}>🚨 Emergency</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.cancelButton} onPress={handleCancelRide}>
