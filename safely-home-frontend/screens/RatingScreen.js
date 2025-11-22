@@ -84,7 +84,7 @@ export default function RatingScreen({ navigation, route }) {
           <Text style={styles.driverName}>{driver?.name || 'Your Driver'} </Text>
           <View style={styles.driverStats}>
             <Text style={styles.driverStat}>⭐ {driver.rating || '4.9 '} </Text>
-            <Text style={styles.driverStat}>• {driver.totalRides || 0 } trips </Text>
+            <Text style={styles.driverStat}>• ({driver.totalRides || 0 }) trips </Text>
           </View>
           <Text style={styles.tripId}>Trip #{rideId?.slice(-6) || 'XXXXX'} </Text>
         </View>

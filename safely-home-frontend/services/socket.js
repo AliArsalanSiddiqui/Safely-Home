@@ -19,7 +19,10 @@ class SocketService {
 
     this.socket.on('connect', () => {
       console.log('✅ Socket connected:', this.socket.id);
-      if (userId) this.socket.emit('authenticate', userId);
+      if (userId) {
+        this.socket.emit('authenticate', userId); // ✅ FIXED: Now authenticates
+        console.log('✅ Socket authenticated with userId:', userId);
+      }
     });
 
     this.socket.on('disconnect', () => console.log('❌ Socket disconnected'));

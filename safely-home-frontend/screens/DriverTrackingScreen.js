@@ -1,17 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, Linking, Platform } from 'react-native';
-import { COLORS } from '../config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { COLORS, API_URL } from '../config';
 import { completeRide, cancelRide } from '../services/api';
 import socketService from '../services/socket';
 
 export default function DriverTrackingScreen({ navigation, route }) {
-  const { rideId, rider, pickup, destination } = route.params;
+  const { rideId, rider, pickup, destination } = route.params || {};
   const [rideStatus, setRideStatus] = useState('heading_to_pickup');
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [userId, setUserId] = useState(null);
+  
+  // ✅ FIXED: Add state for ride details & token
+  const [rideDetails, setRideDetails] = useState(null);
+  const [token, setToken] = useState(null);
+  const [riderInfo, setRiderInfo] = useState(rider || {});
 
   useEffect(() => {
-    console.log('Rider object:', rider);
+    console.log('🔍 Route params received:', {
+      rideId,
+      rider: rider,
+      pickup,
+      destination
+    });
 
     loadUser();
     setupSocketListeners();
@@ -22,11 +33,51 @@ export default function DriverTrackingScreen({ navigation, route }) {
     };
   }, []);
 
+  // ✅ NEW: Fetch ride details from backend with dynamic fare
+  useEffect(() => {
+    const fetchRideDetails = async () => {
+      if (!rideId || !token) return;
+
+      try {
+        console.log('📡 Fetching ride details for:', rideId);
+        
+        const response = await fetch(`${API_URL}/rides/${rideId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ Ride details fetched:', data);
+          setRideDetails(data.ride || data);
+        } else {
+          console.log('⚠️ Could not fetch ride details, using defaults');
+        }
+      } catch (error) {
+        console.error('❌ Failed to fetch ride details:', error);
+        // Use default values if fetch fails
+      }
+    };
+
+    if (rideId && token) {
+      fetchRideDetails();
+    }
+  }, [rideId, token]);
+
   const loadUser = async () => {
     const userData = await AsyncStorage.getItem('user');
+    const tokenData = await AsyncStorage.getItem('token');
+    
     if (userData) {
       const user = JSON.parse(userData);
       setUserId(user.id);
+    }
+    
+    if (tokenData) {
+      setToken(tokenData);
     }
   };
 
@@ -44,9 +95,11 @@ export default function DriverTrackingScreen({ navigation, route }) {
     });
   };
 
-  // FIXED: Call rider - Opens phone dialer
   const handleCallRider = () => {
-    const phoneNumber = rider.phone;
+    const phoneNumber = riderInfo?.phone;
+    
+    console.log('📞 Calling rider:', { riderName: riderInfo?.name, phoneNumber });
+    
     if (!phoneNumber) {
       Alert.alert('Error', 'Rider phone number not available');
       return;
@@ -54,7 +107,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
 
     Alert.alert(
       'Call Rider',
-      `Do you want to call ${rider.name}?`,
+      `Do you want to call ${riderInfo?.name || 'Rider'}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -79,24 +132,22 @@ export default function DriverTrackingScreen({ navigation, route }) {
     );
   };
 
-  // NEW: Open chat
   const handleOpenChat = () => {
     setUnreadMessages(0);
+    
     navigation.navigate('Chat', {
       rideId: rideId,
-      otherUser: rider,
+      otherUser: riderInfo,
       userType: 'driver'
     });
   };
 
-  // NEW: Open Google Maps for navigation
   const openGoogleMaps = (location, label) => {
     if (!location) {
       Alert.alert('Error', 'Location not available');
       return;
     }
 
-    // Try to parse coordinates from location string if needed
     const url = Platform.select({
       ios: `maps://app?daddr=${encodeURIComponent(location)}&dirflg=d`,
       android: `google.navigation:q=${encodeURIComponent(location)}&mode=d`
@@ -109,13 +160,11 @@ export default function DriverTrackingScreen({ navigation, route }) {
         if (supported) {
           return Linking.openURL(url);
         } else {
-          // Fallback to web URL
           return Linking.openURL(fallbackUrl);
         }
       })
       .catch((err) => {
         console.error('Error opening maps:', err);
-        // Try fallback
         Linking.openURL(fallbackUrl).catch(() => {
           Alert.alert('Error', 'Unable to open maps');
         });
@@ -150,7 +199,9 @@ export default function DriverTrackingScreen({ navigation, route }) {
         onPress: async () => {
           try {
             await completeRide(rideId);
-            Alert.alert('✅ Ride Completed!', 'Great job! Earnings: $10.00', [
+            const fare = rideDetails?.fare || 12.50;
+            const earnings = (fare * 0.80).toFixed(2);
+            Alert.alert('✅ Ride Completed!', `Great job! Earnings: $${earnings}`, [
               { text: 'Back to Home', onPress: () => navigation.replace('DriverHome') }
             ]);
           } catch (error) {
@@ -212,6 +263,10 @@ export default function DriverTrackingScreen({ navigation, route }) {
     }
   };
 
+  // ✅ Calculate fare and earnings dynamically
+  const fare = rideDetails?.fare || 12.50;
+  const earnings = (fare * 0.80).toFixed(2);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -238,16 +293,15 @@ export default function DriverTrackingScreen({ navigation, route }) {
           <View style={styles.riderInfo}>
             <View style={styles.riderAvatar}>
               <Text style={styles.riderAvatarText}>
-                {rider?.name?.split(' ').map(n => n[0]).join('') || 'R'}
+                {riderInfo?.name?.split(' ').map(n => n[0]).join('') || 'R'}
               </Text>
             </View>
             <View style={styles.riderDetails}>
-              <Text style={styles.riderName}>{rider?.name || 'Rider'}</Text>
-              <Text style={styles.riderPhone}>📞 {rider?.phone || 'Phone'}</Text>
+              <Text style={styles.riderName}>{riderInfo?.name || 'Rider'}</Text>
+              <Text style={styles.riderPhone}>📞 {riderInfo?.phone || 'Phone'}</Text>
             </View>
           </View>
 
-          {/* UPDATED: Call and Message buttons */}
           <View style={styles.riderActions}>
             <TouchableOpacity style={styles.actionButton} onPress={handleCallRider}>
               <Text style={styles.actionIcon}>📞</Text>
@@ -264,13 +318,12 @@ export default function DriverTrackingScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
 
-          {/* UPDATED: Trip info with Google Maps navigation */}
           <View style={styles.tripInfo}>
             <View style={styles.tripRow}>
               <Text style={styles.tripIcon}>📍</Text>
               <View style={styles.tripTextContainer}>
                 <Text style={styles.tripLabel}>Pickup Location</Text>
-                <Text style={styles.tripValue}>{pickup || 'Pickup'}</Text>
+                <Text style={styles.tripValue}>{pickup || 'Pickup Location'}</Text>
               </View>
               <TouchableOpacity 
                 style={styles.navigateButton} 
@@ -297,15 +350,28 @@ export default function DriverTrackingScreen({ navigation, route }) {
             </View>
           </View>
 
+          {/* ✅ FIXED: Now shows dynamic fare and earnings */}
           <View style={styles.fareInfo}>
             <View style={styles.fareRow}>
               <Text style={styles.fareLabel}>Trip Fare</Text>
-              <Text style={styles.fareValue}>$12.50</Text>
+              <Text style={styles.fareValue}>${fare.toFixed(2)}</Text>
             </View>
             <View style={styles.fareRow}>
               <Text style={styles.fareLabel}>Your Earnings (80%)</Text>
-              <Text style={styles.fareEarnings}>$10.00</Text>
+              <Text style={styles.fareEarnings}>${earnings}</Text>
             </View>
+            {rideDetails?.distance && (
+              <View style={styles.fareRow}>
+                <Text style={styles.fareLabel}>Distance</Text>
+                <Text style={styles.fareValue}>{rideDetails.distance.toFixed(2)} km</Text>
+              </View>
+            )}
+            {rideDetails?.estimatedTime && (
+              <View style={styles.fareRow}>
+                <Text style={styles.fareLabel}>ETA</Text>
+                <Text style={styles.fareValue}>{rideDetails.estimatedTime} mins</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.buttonSection}>

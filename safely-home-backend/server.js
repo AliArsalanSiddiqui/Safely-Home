@@ -30,6 +30,10 @@ mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ MongoDB Atlas Connected Successfully'))
   .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
+// ============================================
+// SCHEMAS
+// ============================================
+
 // User Schema
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
@@ -57,7 +61,7 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ location: '2dsphere' });
 const User = mongoose.model('User', userSchema);
 
-// Ride Schema
+// Ride Schema (UPDATED with distance and estimatedTime)
 const rideSchema = new mongoose.Schema({
   riderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -70,6 +74,8 @@ const rideSchema = new mongoose.Schema({
     coordinates: [Number]
   },
   fare: Number,
+  distance: Number, // in km
+  estimatedTime: Number, // in minutes
   status: {
     type: String,
     enum: ['requested', 'accepted', 'started', 'completed', 'cancelled'],
@@ -87,7 +93,23 @@ const rideSchema = new mongoose.Schema({
 
 const Ride = mongoose.model('Ride', rideSchema);
 
-// File upload
+// NEW: Message Schema for MongoDB
+const messageSchema = new mongoose.Schema({
+  rideId: { type: mongoose.Schema.Types.ObjectId, ref: 'Ride', required: true },
+  senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  senderName: { type: String, required: true },
+  text: { type: String, required: true, maxlength: 500 },
+  timestamp: { type: Date, default: Date.now }
+});
+
+messageSchema.index({ rideId: 1, timestamp: 1 });
+messageSchema.index({ timestamp: 1 }, { expireAfterSeconds: 2592000 }); // 30-day TTL
+const Message = mongoose.model('Message', messageSchema);
+
+// ============================================
+// FILE UPLOAD CONFIG
+// ============================================
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
   filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
@@ -99,6 +121,78 @@ const upload = multer({
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+// Calculate distance using Haversine formula
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c; // Distance in km
+}
+
+// Calculate fare: $0.20 per km + base fare
+function calculateFare(distanceKm) {
+  const baseFare = 2.00; // Base fare
+  const perKmRate = 0.20;
+  const fare = baseFare + (distanceKm * perKmRate);
+  return Math.max(fare, 2.50); // Minimum fare $2.50
+}
+
+// Calculate ETA: Average speed 40 km/h in city
+function calculateETA(distanceKm) {
+  const avgSpeedKmh = 40;
+  const timeHours = distanceKm / avgSpeedKmh;
+  const timeMinutes = Math.ceil(timeHours * 60);
+  return Math.max(timeMinutes, 2); // Minimum 2 minutes
+}
+
+// Email validation
+function isValidEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+// Password validation
+function validatePassword(password) {
+  const minLength = 8;
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasNumbers = /\d/.test(password);
+  const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+  
+  const errors = [];
+  if (password.length < minLength) {
+    errors.push(`Password must be at least ${minLength} characters long`);
+  }
+  if (!hasUpperCase) {
+    errors.push('Password must contain at least one uppercase letter');
+  }
+  if (!hasLowerCase) {
+    errors.push('Password must contain at least one lowercase letter');
+  }
+  if (!hasNumbers) {
+    errors.push('Password must contain at least one number');
+  }
+  if (!hasSpecialChar) {
+    errors.push('Password must contain at least one special character');
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors: errors,
+    strength: errors.length === 0 ? 'Strong' : 
+              errors.length <= 2 ? 'Medium' : 'Weak'
+  };
+}
 
 // Authentication Middleware
 const authenticateToken = (req, res, next) => {
@@ -120,14 +214,18 @@ const authenticateToken = (req, res, next) => {
 };
 
 // ============================================
-// ROUTES
+// TEST ROUTE
 // ============================================
 
 app.get('/api/test', (req, res) => {
   res.json({ success: true, message: 'Backend is working!', timestamp: new Date() });
 });
 
-// Register
+// ============================================
+// AUTH ROUTES
+// ============================================
+
+// Register (UPDATED with email & password validation)
 app.post('/api/register', upload.single('faceImage'), async (req, res) => {
   try {
     console.log('📝 Registration Request Body:', req.body);
@@ -140,6 +238,25 @@ app.post('/api/register', upload.single('faceImage'), async (req, res) => {
         success: false,
         error: 'Missing required fields',
         required: ['email', 'password', 'name', 'phone', 'userType']
+      });
+    }
+
+    // Validate email format
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid email format. Email must contain @ symbol and valid domain'
+      });
+    }
+
+    // Validate password strength
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Password does not meet security requirements',
+        strength: passwordValidation.strength,
+        details: passwordValidation.errors
       });
     }
 
@@ -205,7 +322,7 @@ app.post('/api/register', upload.single('faceImage'), async (req, res) => {
   }
 });
 
-// Login
+// Login (UPDATED with email validation)
 app.post('/api/login', async (req, res) => {
   try {
     console.log('🔐 Login Request:', req.body);
@@ -216,6 +333,14 @@ app.post('/api/login', async (req, res) => {
       return res.status(400).json({ 
         success: false,
         error: 'Email and password are required'
+      });
+    }
+
+    // Validate email format
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid email format. Email must contain @ symbol and valid domain'
       });
     }
 
@@ -320,7 +445,11 @@ app.post('/api/location', authenticateToken, async (req, res) => {
   }
 });
 
-// Request Ride
+// ============================================
+// RIDE ROUTES
+// ============================================
+
+// Request Ride (UPDATED with distance and fare calculation)
 app.post('/api/ride/request', authenticateToken, async (req, res) => {
   try {
     const { pickup, destination, fare } = req.body;
@@ -332,11 +461,42 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Rider not found' });
     }
 
+    // Calculate distance and fare
+    const pickupCoords = pickup.coordinates;
+    const destCoords = destination.coordinates;
+    
+    let calculatedDistance = 0;
+    let calculatedFare = fare || 2.50;
+    let calculatedETA = 15;
+    
+    if (pickupCoords && destCoords && pickupCoords.length === 2 && destCoords.length === 2) {
+      calculatedDistance = calculateDistance(
+        pickupCoords[1], pickupCoords[0],
+        destCoords[1], destCoords[0]
+      );
+      calculatedFare = calculateFare(calculatedDistance);
+      calculatedETA = calculateETA(calculatedDistance);
+      
+      console.log('📊 Calculated:', {
+        distance: calculatedDistance.toFixed(2) + ' km',
+        fare: '$' + calculatedFare.toFixed(2),
+        eta: calculatedETA + ' mins'
+      });
+    }
+
     const ride = new Ride({
       riderId: req.user.userId,
-      pickup,
-      destination,
-      fare,
+      pickup: {
+        ...pickup,
+        address: pickup.address || 'Pickup location'
+      },
+      destination: {
+        ...destination,
+        address: destination.address || 'Destination'
+      },
+      fare: calculatedFare,
+      distance: calculatedDistance,
+      estimatedTime: calculatedETA,
       status: 'requested'
     });
 
@@ -363,7 +523,9 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
         riderName: rider.name,
         pickup: pickup.address,
         destination: destination.address,
-        fare: fare
+        fare: calculatedFare.toFixed(2),
+        distance: calculatedDistance.toFixed(2),
+        estimatedTime: calculatedETA
       });
     });
 
@@ -371,7 +533,10 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
       success: true,
       rideId: ride._id, 
       message: 'Finding driver...',
-      availableDrivers: drivers.length
+      availableDrivers: drivers.length,
+      calculatedFare: calculatedFare.toFixed(2),
+      distance: calculatedDistance.toFixed(2) + ' km',
+      estimatedTime: calculatedETA + ' mins'
     });
   } catch (error) {
     console.error('❌ Ride request error:', error);
@@ -405,6 +570,8 @@ app.get('/api/rides/available', authenticateToken, async (req, res) => {
         pickup: ride.pickup.address,
         destination: ride.destination.address,
         fare: ride.fare,
+        distance: ride.distance,
+        estimatedTime: ride.estimatedTime,
         createdAt: ride.createdAt
       }))
     });
@@ -435,7 +602,7 @@ app.post('/api/ride/accept', authenticateToken, async (req, res) => {
 
     const driver = await User.findById(req.user.userId);
     
-    // FIXED: Get total completed rides for this driver
+    // Get total completed rides for this driver
     const totalRides = await Ride.countDocuments({
       driverId: req.user.userId,
       status: 'completed'
@@ -443,7 +610,7 @@ app.post('/api/ride/accept', authenticateToken, async (req, res) => {
     
     console.log('✅ Ride accepted by driver:', driver.name);
 
-    // Emit to rider with complete driver info including totalRides
+    // Emit to rider with complete driver info
     io.to(ride.riderId._id.toString()).emit('driverAccepted', {
       rideId: ride._id,
       driver: {
@@ -451,7 +618,7 @@ app.post('/api/ride/accept', authenticateToken, async (req, res) => {
         name: driver.name,
         phone: driver.phone,
         rating: driver.rating || 0,
-        totalRides: totalRides, // FIXED: Include total rides
+        totalRides: totalRides,
         vehicleInfo: driver.vehicleInfo,
         gender: driver.gender
       }
@@ -479,7 +646,7 @@ app.post('/api/ride/accept', authenticateToken, async (req, res) => {
   }
 });
 
-// Complete, Cancel, Rate Ride
+// Complete Ride
 app.post('/api/ride/complete', authenticateToken, async (req, res) => {
   try {
     const { rideId } = req.body;
@@ -499,6 +666,7 @@ app.post('/api/ride/complete', authenticateToken, async (req, res) => {
   }
 });
 
+// Cancel Ride
 app.post('/api/ride/cancel', authenticateToken, async (req, res) => {
   try {
     const { rideId } = req.body;
@@ -514,13 +682,13 @@ app.post('/api/ride/cancel', authenticateToken, async (req, res) => {
   }
 });
 
+// Rate Ride
 app.post('/api/ride/rate', authenticateToken, async (req, res) => {
   try {
     const { rideId, rating, feedback } = req.body;
     
     console.log('📝 Rating submission:', { rideId, rating, feedback });
     
-    // Validate rating
     if (!rating || rating < 1 || rating > 5) {
       return res.status(400).json({ 
         success: false, 
@@ -528,7 +696,6 @@ app.post('/api/ride/rate', authenticateToken, async (req, res) => {
       });
     }
     
-    // Find the ride
     const ride = await Ride.findById(rideId).populate('driverId');
     
     if (!ride) {
@@ -547,7 +714,6 @@ app.post('/api/ride/rate', authenticateToken, async (req, res) => {
       });
     }
     
-    // Check if already rated
     if (ride.feedback && ride.feedback.rating) {
       console.warn('⚠️ Ride already rated');
       return res.status(400).json({ 
@@ -556,7 +722,6 @@ app.post('/api/ride/rate', authenticateToken, async (req, res) => {
       });
     }
     
-    // Update ride with feedback
     ride.feedback = {
       rating: rating,
       tags: feedback?.tags || [],
@@ -566,17 +731,14 @@ app.post('/api/ride/rate', authenticateToken, async (req, res) => {
     
     console.log('✅ Ride feedback saved:', ride.feedback);
     
-    // Calculate new driver rating
     const driver = await User.findById(ride.driverId);
     
-    // Count all completed rides with ratings
     const completedRidesWithRatings = await Ride.countDocuments({
       driverId: ride.driverId,
       status: 'completed',
       'feedback.rating': { $exists: true, $ne: null }
     });
     
-    // Calculate average rating
     const allRatedRides = await Ride.find({
       driverId: ride.driverId,
       status: 'completed',
@@ -588,7 +750,6 @@ app.post('/api/ride/rate', authenticateToken, async (req, res) => {
       ? totalRating / completedRidesWithRatings 
       : 5.0;
     
-    // Update driver rating
     driver.rating = Number(newAverageRating.toFixed(2));
     await driver.save();
     
@@ -614,10 +775,30 @@ app.post('/api/ride/rate', authenticateToken, async (req, res) => {
     });
   }
 });
-
-app.get('/api/driver/stats/:driverId', async (req, res) => {
+// Get Ride Details
+app.get('/api/rides/:rideId', authenticateToken, async (req, res) => {
   try {
-    const { driverId } = req.params;
+    const ride = await Ride.findById(req.params.rideId)
+      .populate('riderId', 'name phone')
+      .populate('driverId', 'name phone rating vehicleInfo');
+    
+    if (!ride) {
+      return res.status(404).json({ success: false, error: 'Ride not found' });
+    }
+    
+    res.json({ success: true, ride });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+// ============================================
+// DRIVER ROUTES
+// ============================================
+
+// Get Driver Stats (Authenticated Driver)
+app.get('/api/driver/stats', authenticateToken, async (req, res) => {
+  try {
+    const driverId = req.user.userId;
     
     const driver = await User.findById(driverId);
     if (!driver) {
@@ -630,32 +811,80 @@ app.get('/api/driver/stats/:driverId', async (req, res) => {
       status: 'completed'
     });
     
-    // Count rides with ratings
-    const ratedRides = await Ride.countDocuments({
+    // Get rides with ratings
+    const ratedRides = await Ride.find({
       driverId: driverId,
       status: 'completed',
       'feedback.rating': { $exists: true, $ne: null }
-    });
+    })
+    .sort({ completedAt: -1 })
+    .limit(10)
+    .select('feedback createdAt riderId')
+    .populate('riderId', 'name');
     
-    // Get all ratings
-    const ridesWithRatings = await Ride.find({
-      driverId: driverId,
-      status: 'completed',
-      'feedback.rating': { $exists: true, $ne: null }
-    }).select('feedback.rating feedback.tags feedback.comments createdAt');
+    // Format reviews
+    const reviews = ratedRides.map(ride => ({
+      riderName: ride.riderId?.name || 'Anonymous',
+      rating: ride.feedback.rating,
+      comment: ride.feedback.comments || '',
+      tags: ride.feedback.tags || [],
+      date: ride.createdAt
+    }));
     
     res.json({
       success: true,
       stats: {
         totalRides,
-        ratedRides,
         averageRating: driver.rating || 0,
-        reviews: ridesWithRatings.map(ride => ({
-          rating: ride.feedback.rating,
-          tags: ride.feedback.tags,
-          comments: ride.feedback.comments,
-          date: ride.createdAt
-        }))
+        reviews: reviews
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Get driver stats error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get Driver Stats by ID (Public - for riders)
+app.get('/api/driver/stats/:driverId', async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    
+    const driver = await User.findById(driverId);
+    if (!driver) {
+      return res.status(404).json({ success: false, error: 'Driver not found' });
+    }
+    
+    const totalRides = await Ride.countDocuments({
+      driverId: driverId,
+      status: 'completed'
+    });
+    
+    const ratedRides = await Ride.find({
+      driverId: driverId,
+      status: 'completed',
+      'feedback.rating': { $exists: true, $ne: null }
+    })
+    .sort({ completedAt: -1 })
+    .limit(10)
+    .select('feedback createdAt riderId')
+    .populate('riderId', 'name');
+    
+    const reviews = ratedRides.map(ride => ({
+      riderName: ride.riderId?.name || 'Anonymous',
+      rating: ride.feedback.rating,
+      comment: ride.feedback.comments || '',
+      tags: ride.feedback.tags || [],
+      date: ride.createdAt
+    }));
+    
+    res.json({
+      success: true,
+      stats: {
+        totalRides,
+        averageRating: driver.rating || 0,
+        reviews: reviews
       }
     });
     
@@ -703,10 +932,11 @@ app.get('/api/driver/earnings', authenticateToken, async (req, res) => {
   }
 });
 
-// Socket.io
-const connectedUsers = new Map();
+// ============================================
+// SOCKET.IO
+// ============================================
 
-const chatMessages = new Map(); // rideId -> messages[]
+const connectedUsers = new Map();
 
 io.on('connection', (socket) => {
   console.log('👤 User connected:', socket.id);
@@ -737,73 +967,98 @@ io.on('connection', (socket) => {
     }
     console.log('👤 User disconnected:', socket.id);
   });
+
   socket.on('rideStatusUpdate', async ({ rideId, status }) => {
-  try {
-    console.log('📡 Received status update:', { rideId, status });
-    
-    const ride = await Ride.findById(rideId).populate('riderId driverId');
-    
-    if (ride) {
-      // Broadcast to both rider and driver
-      if (ride.riderId) {
-        io.to(ride.riderId._id.toString()).emit('rideStatusUpdate', {
-          rideId: ride._id,
-          status: status
-        });
-        console.log('✅ Status sent to rider:', ride.riderId._id);
-      }
+    try {
+      console.log('📡 Received status update:', { rideId, status });
       
-      if (ride.driverId) {
-        io.to(ride.driverId._id.toString()).emit('rideStatusUpdate', {
-          rideId: ride._id,
-          status: status
-        });
-        console.log('✅ Status sent to driver:', ride.driverId._id);
+      const ride = await Ride.findById(rideId).populate('riderId driverId');
+      
+      if (ride) {
+        if (ride.riderId) {
+          io.to(ride.riderId._id.toString()).emit('rideStatusUpdate', {
+            rideId: ride._id,
+            status: status
+          });
+          console.log('✅ Status sent to rider:', ride.riderId._id);
+        }
+        
+        if (ride.driverId) {
+          io.to(ride.driverId._id.toString()).emit('rideStatusUpdate', {
+            rideId: ride._id,
+            status: status
+          });
+          console.log('✅ Status sent to driver:', ride.driverId._id);
+        }
       }
+    } catch (error) {
+      console.error('❌ Status update error:', error);
     }
-  } catch (error) {
-    console.error('❌ Status update error:', error);
-  }
+  });
+
+  // FIXED: Chat - Now saves to MongoDB instead of memory
+  socket.on('sendMessage', async (message) => {
+    try {
+      console.log('💬 Message received:', message);
+      
+      const { rideId, senderId, senderName, text, timestamp } = message;
+      
+      // Save to MongoDB
+      const newMessage = new Message({
+        rideId,
+        senderId,
+        senderName,
+        text,
+        timestamp: timestamp || new Date()
+      });
+      
+      await newMessage.save();
+      console.log('✅ Message saved to MongoDB');
+      
+      // Broadcast to all users in this ride
+      io.emit('newMessage', {
+        _id: newMessage._id,
+        rideId,
+        senderId,
+        senderName,
+        text,
+        timestamp: newMessage.timestamp
+      });
+      
+    } catch (error) {
+      console.error('❌ Send message error:', error);
+    }
+  });
+
+  // FIXED: Get chat history from MongoDB
+  socket.on('getChatHistory', async ({ rideId }) => {
+    try {
+      const messages = await Message.find({ rideId })
+        .sort({ timestamp: 1 })
+        .limit(100);
+      
+      socket.emit('messageHistory', messages);
+      console.log(`📜 Sent ${messages.length} messages for ride ${rideId}`);
+    } catch (error) {
+      console.error('❌ Get chat history error:', error);
+      socket.emit('messageHistory', []);
+    }
+  });
 });
 
-socket.on('sendMessage', (message) => {
-  try {
-    console.log('💬 Message received:', message);
-    
-    const { rideId, senderId, senderName, text, timestamp } = message;
-    
-    // Store message
-    if (!chatMessages.has(rideId)) {
-      chatMessages.set(rideId, []);
-    }
-    chatMessages.get(rideId).push(message);
-    
-    // Broadcast to all users in this ride
-    io.emit('newMessage', message);
-    
-    console.log('✅ Message broadcasted');
-  } catch (error) {
-    console.error('❌ Send message error:', error);
-  }
-});
-socket.on('getChatHistory', ({ rideId }) => {
-  try {
-    const history = chatMessages.get(rideId) || [];
-    socket.emit('messageHistory', history);
-    console.log(`📜 Sent ${history.length} messages for ride ${rideId}`);
-  } catch (error) {
-    console.error('❌ Get chat history error:', error);
-  }
-});
-});
+// ============================================
+// ERROR HANDLER
+// ============================================
 
-// Error Handler
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err);
   res.status(500).json({ success: false, error: 'Internal server error', message: err.message });
 });
 
-// Start Server
+// ============================================
+// START SERVER
+// ============================================
+
 const PORT = process.env.PORT || 5000;
 const HOST = '0.0.0.0';
 

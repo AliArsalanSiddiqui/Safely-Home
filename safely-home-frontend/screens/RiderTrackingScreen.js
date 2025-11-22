@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, Linking, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS } from '../config';
+import { COLORS, API_URL } from '../config';
 import { cancelRide } from '../services/api';
 import socketService from '../services/socket';
 
@@ -9,17 +9,30 @@ export default function RiderTrackingScreen({ navigation, route }) {
   const params = route.params || {};
   const rideId = params.rideId;
   const driver = params.driver || {};
-  const pickupLocation = params.pickup || 'Loading pickup location...';
-  const destinationLocation = params.destination || 'Loading destination...';
+  
+  // ✅ FIXED: Accept both route params and fetched data
+  const [pickupLocation, setPickupLocation] = useState(params.pickup || '');
+  const [destinationLocation, setDestinationLocation] = useState(params.destination || '');
   
   const [status, setStatus] = useState('Driver is on the way');
   const [arrivalTime, setArrivalTime] = useState('5 mins');
   const [userId, setUserId] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [token, setToken] = useState(null);
+  const [rideDetails, setRideDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('✅ RiderTrackingScreen loaded with:', {
+      rideId,
+      pickup: pickupLocation,
+      destination: destinationLocation,
+      driver: driver?.name
+    });
+
     loadUser();
     setupSocketListeners();
+    fetchRideDetails();
     
     return () => {
       socketService.off('rideCompleted');
@@ -32,13 +45,67 @@ export default function RiderTrackingScreen({ navigation, route }) {
   const loadUser = async () => {
     try {
       const userData = await AsyncStorage.getItem('user');
+      const tokenData = await AsyncStorage.getItem('token');
+      
       if (userData) {
         const user = JSON.parse(userData);
         setUserId(user.id);
         socketService.connect(user.id);
       }
+      
+      if (tokenData) {
+        setToken(tokenData);
+      }
     } catch (error) {
       console.error('Error loading user:', error);
+    }
+  };
+
+  // ✅ NEW: Fetch ride details to get pickup and destination if not in params
+  const fetchRideDetails = async () => {
+    if (!rideId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const tokenData = await AsyncStorage.getItem('token');
+      
+      if (!tokenData) {
+        setLoading(false);
+        return;
+      }
+
+      console.log('📡 Fetching ride details for:', rideId);
+      
+      const response = await fetch(`${API_URL}/rides/${rideId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${tokenData}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const ride = data.ride || data;
+        
+        console.log('✅ Ride details fetched:', ride);
+        
+        setRideDetails(ride);
+        
+        // ✅ Update locations from API if not already set
+        if (!pickupLocation && ride?.pickup?.address) {
+          setPickupLocation(ride.pickup.address);
+        }
+        if (!destinationLocation && ride?.destination?.address) {
+          setDestinationLocation(ride.destination.address);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch ride details:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -67,7 +134,6 @@ export default function RiderTrackingScreen({ navigation, route }) {
       }
     });
 
-    // Listen for new messages
     socketService.on('newMessage', (message) => {
       if (message.rideId === rideId && message.senderId !== userId) {
         setUnreadMessages(prev => prev + 1);
@@ -75,9 +141,11 @@ export default function RiderTrackingScreen({ navigation, route }) {
     });
   };
 
-  // FIXED: Call driver - Opens phone dialer
   const handleCallDriver = () => {
-    const phoneNumber = driver.phone;
+    const phoneNumber = driver?.phone;
+    
+    console.log('📞 Calling driver:', { driverName: driver?.name, phoneNumber });
+    
     if (!phoneNumber) {
       Alert.alert('Error', 'Driver phone number not available');
       return;
@@ -85,7 +153,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
 
     Alert.alert(
       'Call Driver',
-      `Do you want to call ${driver.name}?`,
+      `Do you want to call ${driver?.name || 'Driver'}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -110,7 +178,6 @@ export default function RiderTrackingScreen({ navigation, route }) {
     );
   };
 
-  // NEW: Open chat
   const handleOpenChat = () => {
     setUnreadMessages(0);
     navigation.navigate('Chat', {
@@ -142,6 +209,24 @@ export default function RiderTrackingScreen({ navigation, route }) {
     navigation.navigate('ReportIssue', { rideId, driver });
   };
 
+  if (loading && !pickupLocation) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={styles.backButton}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Track Your Ride</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.accent} />
+          <Text style={styles.loadingText}>Loading ride details...</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -165,18 +250,18 @@ export default function RiderTrackingScreen({ navigation, route }) {
           <View style={styles.driverInfo}>
             <View style={styles.driverAvatar}>
               <Text style={styles.driverAvatarText}>
-                {driver.name ? driver.name.split(' ').map(n => n[0]).join('') : 'D'}
+                {driver?.name ? driver.name.split(' ').map(n => n[0]).join('') : 'D'}
               </Text>
             </View>
             <View style={styles.driverDetails}>
-              <Text style={styles.driverName}>{driver.name || 'Driver'}</Text>
+              <Text style={styles.driverName}>{driver?.name || 'Driver'}</Text>
               <View style={styles.ratingContainer}>
                 <Text style={styles.ratingStar}>⭐</Text>
                 <Text style={styles.ratingText}>
-                  {driver.rating ? Number(driver.rating).toFixed(1) : '0.0'} • ({driver.totalRides || 0}) rides </Text>
+                  {driver?.rating ? Number(driver.rating).toFixed(1) : '0.0'} • ({driver?.totalRides || 0}) rides </Text>
               </View>
               <Text style={styles.genderText}>
-                {driver.gender === 'female' ? '👩 Female Driver' : '👨 Male Driver'}
+                {driver?.gender === 'female' ? '👩 Female Driver' : '👨 Male Driver'}
               </Text>
             </View>
           </View>
@@ -184,12 +269,11 @@ export default function RiderTrackingScreen({ navigation, route }) {
           <View style={styles.vehicleInfoCard}>
             <Text style={styles.vehicleIcon}>🚗</Text>
             <View style={styles.vehicleDetails}>
-              <Text style={styles.vehicleText}>{driver.vehicleInfo?.model || 'Vehicle'}</Text>
-              <Text style={styles.vehiclePlate}>{driver.vehicleInfo?.licensePlate || 'License'}</Text>
+              <Text style={styles.vehicleText}>{driver?.vehicleInfo?.model || 'Vehicle'}</Text>
+              <Text style={styles.vehiclePlate}>{driver?.vehicleInfo?.licensePlate || 'License'}</Text>
             </View>
           </View>
 
-          {/* UPDATED: Call and Message buttons */}
           <View style={styles.driverActions}>
             <TouchableOpacity style={styles.actionButton} onPress={handleCallDriver}>
               <Text style={styles.actionIcon}>📞</Text>
@@ -210,12 +294,13 @@ export default function RiderTrackingScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
 
+          {/* ✅ FIXED: Now shows locations from params or fetched from API */}
           <View style={styles.tripInfo}>
             <View style={styles.tripRow}>
               <Text style={styles.tripIcon}>📍</Text>
               <View style={styles.tripTextContainer}>
                 <Text style={styles.tripLabel}>Pickup Location</Text>
-                <Text style={styles.tripValue}>{pickupLocation}</Text>
+                <Text style={styles.tripValue}>{pickupLocation || 'Loading...'}</Text>
               </View>
             </View>
             <View style={styles.tripDivider} />
@@ -223,10 +308,32 @@ export default function RiderTrackingScreen({ navigation, route }) {
               <Text style={styles.tripIcon}>🎯</Text>
               <View style={styles.tripTextContainer}>
                 <Text style={styles.tripLabel}>Destination</Text>
-                <Text style={styles.tripValue}>{destinationLocation}</Text>
+                <Text style={styles.tripValue}>{destinationLocation || 'Loading...'}</Text>
               </View>
             </View>
           </View>
+
+          {/* Show fare and distance if available */}
+          {rideDetails && (
+            <View style={styles.rideDetailsCard}>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>💰 Fare </Text>
+                <Text style={styles.detailValue}>${rideDetails.fare?.toFixed(2) || '0.00'}</Text>
+              </View>
+              {rideDetails.distance && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>📍 Distance </Text>
+                  <Text style={styles.detailValue}>{rideDetails.distance.toFixed(2)} km</Text>
+                </View>
+              )}
+              {rideDetails.estimatedTime && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>⏱️ ETA </Text>
+                  <Text style={styles.detailValue}>{rideDetails.estimatedTime} mins</Text>
+                </View>
+              )}
+            </View>
+          )}
 
           <View style={styles.buttonSection}>
             <TouchableOpacity style={styles.reportButton} onPress={handleReportIssue}>
@@ -244,6 +351,8 @@ export default function RiderTrackingScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.primary },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 10, fontSize: 16, color: COLORS.text },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60 },
   backButton: { fontSize: 30, color: COLORS.accent },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.text },
@@ -269,18 +378,22 @@ const styles = StyleSheet.create({
   vehicleText: { fontSize: 16, color: COLORS.text, fontWeight: 'bold', marginBottom: 3 },
   vehiclePlate: { fontSize: 14, color: COLORS.accent, fontWeight: 'bold' },
   driverActions: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 20 },
-  actionButton: { alignItems: 'center', backgroundColor: COLORS.primary, padding: 15, borderRadius: 12, minWidth: 80, position: 'relative' },
+  actionButton: { alignItems: 'center', backgroundColor: COLORS.primary, padding: 15, borderRadius: 12, minWidth: 70, position: 'relative' },
   actionIcon: { fontSize: 28, marginBottom: 5 },
   actionLabel: { fontSize: 12, color: COLORS.text, fontWeight: '600' },
   badge: { position: 'absolute', top: 8, right: 8, backgroundColor: COLORS.light, borderRadius: 10, minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center' },
   badgeText: { color: COLORS.textDark, fontSize: 12, fontWeight: 'bold' },
-  tripInfo: { backgroundColor: COLORS.primary, borderRadius: 15, padding: 15, marginBottom: 20 },
+  tripInfo: { backgroundColor: COLORS.primary, borderRadius: 15, padding: 15, marginBottom: 15 },
   tripRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 10 },
   tripIcon: { fontSize: 20, marginRight: 12, marginTop: 2 },
   tripTextContainer: { flex: 1 },
   tripLabel: { fontSize: 12, color: COLORS.text, opacity: 0.7, marginBottom: 4 },
   tripValue: { fontSize: 14, color: COLORS.text, lineHeight: 20 },
   tripDivider: { height: 1, backgroundColor: COLORS.secondary, marginVertical: 5 },
+  rideDetailsCard: { backgroundColor: COLORS.primary, borderRadius: 12, padding: 15, marginBottom: 15 },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  detailLabel: { fontSize: 13, color: COLORS.text },
+  detailValue: { fontSize: 14, color: COLORS.accent, fontWeight: 'bold' },
   buttonSection: {},
   reportButton: { backgroundColor: COLORS.light, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 12 },
   reportButtonText: { fontSize: 16, color: COLORS.textDark, fontWeight: 'bold' },

@@ -1,5 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, FlatList } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  FlatList
+} from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,18 +24,26 @@ export default function BookingScreen({ navigation, route }) {
   const [destination, setDestination] = useState('');
   const [loading, setLoading] = useState(false);
   const [searchingDriver, setSearchingDriver] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState(null);
+  const [currentLocation, setCurrentLocation] = useState(null); // pickup coords
   const [destinationLocation, setDestinationLocation] = useState(null);
-  const [editingField, setEditingField] = useState(null);
   const [userId, setUserId] = useState(null);
   const [currentRideId, setCurrentRideId] = useState(null);
-  
-  // NEW: Autocomplete states
+  const [token, setToken] = useState(null);
+
+  // NEW: activeField controls which field map taps will update: 'pickup' | 'destination' | null
+  const [activeField, setActiveField] = useState(null);
+
+  // Dynamic fare / ETA / distance
+  const [calculatedFare, setCalculatedFare] = useState(null);
+  const [calculatedDistance, setCalculatedDistance] = useState(null);
+  const [calculatedETA, setCalculatedETA] = useState(null);
+
+  // Autocomplete suggestions
   const [pickupSuggestions, setPickupSuggestions] = useState([]);
   const [destinationSuggestions, setDestinationSuggestions] = useState([]);
   const [showPickupSuggestions, setShowPickupSuggestions] = useState(false);
   const [showDestinationSuggestions, setShowDestinationSuggestions] = useState(false);
-  
+
   const mapRef = useRef(null);
   const pickupInputRef = useRef(null);
   const destinationInputRef = useRef(null);
@@ -33,9 +53,9 @@ export default function BookingScreen({ navigation, route }) {
     setupSocketListeners();
 
     if (route.params?.editPickup) {
-      setEditingField('pickup');
+      setActiveField('pickup');
     } else if (route.params?.editDestination) {
-      setEditingField('destination');
+      setActiveField('destination');
     }
 
     return () => {
@@ -43,6 +63,18 @@ export default function BookingScreen({ navigation, route }) {
       socketService.off('rideCancelled');
     };
   }, []);
+
+  // When either coordinate changes, recalc fare/eta
+  useEffect(() => {
+    if (currentLocation && destinationLocation) {
+      calculateFareAndETA();
+    } else {
+      // Clear estimates if one of them is missing
+      setCalculatedDistance(null);
+      setCalculatedFare(null);
+      setCalculatedETA(null);
+    }
+  }, [currentLocation, destinationLocation]);
 
   const getCurrentLocation = async () => {
     try {
@@ -66,11 +98,17 @@ export default function BookingScreen({ navigation, route }) {
       }
 
       const userData = await AsyncStorage.getItem('user');
+      const tokenData = await AsyncStorage.getItem('token');
+
       if (userData) {
         const user = JSON.parse(userData);
         setUserId(user.id);
         await updateLocation(location.coords.latitude, location.coords.longitude);
         socketService.connect(user.id);
+      }
+
+      if (tokenData) {
+        setToken(tokenData);
       }
 
       if (mapRef.current) {
@@ -86,84 +124,138 @@ export default function BookingScreen({ navigation, route }) {
     }
   };
 
-  // NEW: Address autocomplete function
-  const searchPlaces = async (query, field) => {
-    if (!query || query.length < 3) {
-      if (field === 'pickup') setPickupSuggestions([]);
-      if (field === 'destination') setDestinationSuggestions([]);
+  // Calculates fare/distance/eta using Haversine (keeps same logic as server)
+  const calculateFareAndETA = () => {
+    if (!currentLocation || !destinationLocation) {
+      setCalculatedDistance(null);
+      setCalculatedFare(null);
+      setCalculatedETA(null);
       return;
     }
 
-    try {
-      // Use current location as bias
-      const locationBias = currentLocation 
-        ? `${currentLocation.latitude},${currentLocation.longitude}`
-        : '';
+    const R = 6371; // km
+    const lat1 = currentLocation.latitude;
+    const lon1 = currentLocation.longitude;
+    const lat2 = destinationLocation.latitude;
+    const lon2 = destinationLocation.longitude;
 
-      // Google Places Autocomplete API
-      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&location=${locationBias}&radius=50000&key=${GOOGLE_MAPS_API_KEY}`;
-      
-      const response = await fetch(url);
-      const data = await response.json();
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
 
-      if (data.predictions) {
-        const suggestions = data.predictions.map(pred => ({
-          description: pred.description,
-          placeId: pred.place_id
-        }));
+    const fare = Math.max(2.0 + (distance * 0.20), 2.50);
+    const eta = Math.max(Math.ceil((distance / 40) * 60), 2); // 40 km/h
 
-        if (field === 'pickup') {
-          setPickupSuggestions(suggestions);
-          setShowPickupSuggestions(true);
-        } else {
-          setDestinationSuggestions(suggestions);
-          setShowDestinationSuggestions(true);
-        }
-      }
-    } catch (error) {
-      console.error('Autocomplete error:', error);
-    }
+    setCalculatedDistance(distance);
+    setCalculatedFare(fare);
+    setCalculatedETA(eta);
+
+    console.log('💰 Calculated:', {
+      distance: distance.toFixed(2),
+      fare: fare.toFixed(2),
+      eta
+    });
   };
 
-  // NEW: Select suggestion from autocomplete
+  // Autocomplete: uses Google Places API
+  const searchPlaces = async (query, field) => {
+  if (!query || query.length < 2) {
+    if (field === 'pickup') setPickupSuggestions([]);
+    if (field === 'destination') setDestinationSuggestions([]);
+    return;
+  }
+
+  try {
+    const locationBias = currentLocation
+      ? `${currentLocation.latitude},${currentLocation.longitude}`
+      : '';
+
+    const url =
+      `https://maps.googleapis.com/maps/api/place/autocomplete/json?` +
+      `input=${encodeURIComponent(query)}` +
+      `&location=${locationBias}` +
+      `&radius=50000` +
+      `&types=geocode` +
+      `&components=country:pk` +    // <---- FIXED
+      `&key=${GOOGLE_MAPS_API_KEY}`;
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.predictions) {
+      const suggestions = data.predictions.map(pred => ({
+        description: pred.description,
+        placeId: pred.place_id
+      }));
+
+      if (field === 'pickup') {
+        setPickupSuggestions(suggestions);
+        setShowPickupSuggestions(true);
+      } else {
+        setDestinationSuggestions(suggestions);
+        setShowDestinationSuggestions(true);
+      }
+    } else {
+      console.log("Places error:", data);
+    }
+  } catch (error) {
+    console.error('Autocomplete error:', error);
+  }
+};
+
+
+  // When user picks a suggestion from autocomplete
   const selectSuggestion = async (suggestion, field) => {
     try {
-      // Get place details to get coordinates
-      const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${suggestion.placeId}&fields=geometry&key=${GOOGLE_MAPS_API_KEY}`;
+      const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${suggestion.placeId}&fields=geometry,name,formatted_address&key=${GOOGLE_MAPS_API_KEY}`;
       const response = await fetch(url);
       const data = await response.json();
 
       if (data.result && data.result.geometry) {
-        const location = data.result.geometry.location;
-        const coords = {
-          latitude: location.lat,
-          longitude: location.lng
-        };
+        const loc = data.result.geometry.location;
+        const coords = { latitude: loc.lat, longitude: loc.lng };
 
         if (field === 'pickup') {
-          setPickup(suggestion.description);
+          setPickup(suggestion.description || data.result.formatted_address || data.result.name || 'Pickup location');
           setCurrentLocation(coords);
           setShowPickupSuggestions(false);
           setPickupSuggestions([]);
         } else {
-          setDestination(suggestion.description);
+          setDestination(suggestion.description || data.result.formatted_address || data.result.name || 'Destination');
           setDestinationLocation(coords);
           setShowDestinationSuggestions(false);
           setDestinationSuggestions([]);
         }
 
-        // Animate map to selected location
+        // Clear activeField because user explicitly selected via autocomplete
+        setActiveField(null);
+
+        // Center map on selected location
         if (mapRef.current) {
           mapRef.current.animateToRegion({
             ...coords,
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
-          }, 1000);
+          }, 500);
         }
+      } else {
+        // fallback: just set the text if details not available
+        if (field === 'pickup') {
+          setPickup(suggestion.description);
+          setShowPickupSuggestions(false);
+        } else {
+          setDestination(suggestion.description);
+          setShowDestinationSuggestions(false);
+        }
+        setActiveField(null);
       }
     } catch (error) {
       console.error('Place details error:', error);
-      // Still set the address even if coordinates fail
       if (field === 'pickup') {
         setPickup(suggestion.description);
         setShowPickupSuggestions(false);
@@ -171,26 +263,74 @@ export default function BookingScreen({ navigation, route }) {
         setDestination(suggestion.description);
         setShowDestinationSuggestions(false);
       }
+      setActiveField(null);
     }
   };
 
+  // Map press behavior (Option A): updates the currently active field only
+  const handleMapPress = async (event) => {
+    const { coordinate } = event.nativeEvent;
+
+    if (!activeField) {
+      // If you prefer, you can notify user to focus an input
+      return;
+    }
+
+    try {
+      const address = await Location.reverseGeocodeAsync(coordinate);
+      const textAddress = `${address[0]?.street || address[0]?.name || 'Selected location'}, ${address[0]?.city || ''}`;
+
+      if (activeField === 'pickup') {
+        setCurrentLocation(coordinate);
+        setPickup(textAddress);
+        setShowPickupSuggestions(false);
+        setPickupSuggestions([]);
+      } else if (activeField === 'destination') {
+        setDestinationLocation(coordinate);
+        setDestination(textAddress);
+        setShowDestinationSuggestions(false);
+        setDestinationSuggestions([]);
+      }
+
+      // After a map selection we clear activeField — to re-enable, user focuses input again
+      setActiveField(null);
+
+      if (mapRef.current) {
+        mapRef.current.animateToRegion({
+          ...coordinate,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }, 300);
+      }
+    } catch (error) {
+      console.error('Reverse geocode error', error);
+      // still update the coords and clear activeField so user can retry
+      if (activeField === 'pickup') {
+        setCurrentLocation(coordinate);
+        setPickup('Selected pickup location');
+      } else if (activeField === 'destination') {
+        setDestinationLocation(coordinate);
+        setDestination('Selected destination');
+      }
+      setActiveField(null);
+    }
+  };
+
+  // Socket listeners
   const setupSocketListeners = () => {
     socketService.on('driverAccepted', (data) => {
       console.log('✅ Driver accepted:', data);
       setSearchingDriver(false);
-      
-      const pickupLocation = pickup || 'Pickup location';
-      const destinationLocation = destination || 'Destination';
-      
+
       Alert.alert('🚗 Driver Found!', `${data.driver.name} is coming to pick you up!`, [
-        { 
-          text: 'View Details', 
+        {
+          text: 'View Details',
           onPress: () => {
-            navigation.replace('RiderTracking', { 
+            navigation.replace('RiderTracking', {
               rideId: data.rideId || currentRideId,
               driver: data.driver,
-              pickup: pickupLocation,
-              destination: destinationLocation
+              pickup,
+              destination
             });
           }
         }
@@ -205,34 +345,7 @@ export default function BookingScreen({ navigation, route }) {
     });
   };
 
-  const handleMapPress = async (event) => {
-    const { coordinate } = event.nativeEvent;
-    
-    if (editingField === 'pickup') {
-      setCurrentLocation(coordinate);
-      try {
-        const address = await Location.reverseGeocodeAsync(coordinate);
-        if (address[0]) {
-          setPickup(`${address[0].street || address[0].name || 'Selected location'}, ${address[0].city || ''}`);
-        }
-      } catch (error) {
-        setPickup('Selected pickup location');
-      }
-      setEditingField(null);
-    } else if (editingField === 'destination') {
-      setDestinationLocation(coordinate);
-      try {
-        const address = await Location.reverseGeocodeAsync(coordinate);
-        if (address[0]) {
-          setDestination(`${address[0].street || address[0].name || 'Selected location'}, ${address[0].city || ''}`);
-        }
-      } catch (error) {
-        setDestination('Selected destination');
-      }
-      setEditingField(null);
-    }
-  };
-
+  // Booking
   const handleBookRide = async () => {
     if (!pickup || !destination) {
       Alert.alert('Error', 'Please enter both pickup and destination');
@@ -240,7 +353,12 @@ export default function BookingScreen({ navigation, route }) {
     }
 
     if (!currentLocation) {
-      Alert.alert('Error', 'Unable to get your location. Please try again.');
+      Alert.alert('Error', 'Unable to get your pickup location. Please try again.');
+      return;
+    }
+
+    if (!destinationLocation) {
+      Alert.alert('Error', 'Please select a valid destination location');
       return;
     }
 
@@ -248,6 +366,8 @@ export default function BookingScreen({ navigation, route }) {
     setSearchingDriver(true);
 
     try {
+      const fare = calculatedFare || 12.50;
+
       const rideData = {
         pickup: {
           address: pickup,
@@ -255,30 +375,36 @@ export default function BookingScreen({ navigation, route }) {
         },
         destination: {
           address: destination,
-          coordinates: destinationLocation 
-            ? [destinationLocation.longitude, destinationLocation.latitude]
-            : [0, 0]
+          coordinates: [destinationLocation.longitude, destinationLocation.latitude]
         },
-        fare: 12.50
+        fare
       };
 
       const response = await requestRide(rideData.pickup, rideData.destination, rideData.fare);
-      
+
       if (response.success) {
         setCurrentRideId(response.rideId);
-        Alert.alert('Finding Driver', `Looking for ${response.availableDrivers} available drivers...`, [
-          {
-            text: 'Cancel Search',
-            onPress: () => {
-              setSearchingDriver(false);
-              navigation.goBack();
-            },
-            style: 'cancel'
-          }
-        ]);
+        Alert.alert(
+          'Finding Driver',
+          `Looking for ${response.availableDrivers} available drivers...\n\n💰 Fare: $${response.calculatedFare}\n📍 Distance: ${response.distance}\n⏱️ ETA: ${response.estimatedTime}`,
+          [
+            {
+              text: 'Cancel Search',
+              onPress: () => {
+                setSearchingDriver(false);
+                navigation.goBack();
+              },
+              style: 'cancel'
+            }
+          ]
+        );
+      } else {
+        setSearchingDriver(false);
+        Alert.alert('Booking Failed', response.error || 'Please try again');
       }
     } catch (error) {
       setSearchingDriver(false);
+      console.error('Booking error:', error);
       Alert.alert('Booking Failed', error.response?.data?.error || 'Please try again');
     } finally {
       setLoading(false);
@@ -317,21 +443,21 @@ export default function BookingScreen({ navigation, route }) {
             <Marker coordinate={destinationLocation} title="Destination" pinColor={COLORS.light} />
           )}
         </MapView>
-        
-        {editingField && (
+
+        {activeField && (
           <View style={styles.mapInstruction}>
             <Text style={styles.mapInstructionText}>
-              📍 Tap map to select {editingField}
+              📍 Tap map to select {activeField}
             </Text>
           </View>
         )}
       </View>
 
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.bottomSheet}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -345,7 +471,7 @@ export default function BookingScreen({ navigation, route }) {
                 <TextInput
                   ref={pickupInputRef}
                   style={styles.input}
-                  placeholder="Search or tap map"
+                  placeholder="Type or tap map"
                   placeholderTextColor="#999"
                   value={pickup}
                   onChangeText={(text) => {
@@ -353,14 +479,20 @@ export default function BookingScreen({ navigation, route }) {
                     searchPlaces(text, 'pickup');
                   }}
                   onFocus={() => {
-                    setEditingField(null);
-                    setShowDestinationSuggestions(true);
+                    setShowPickupSuggestions(true);
+                    setShowDestinationSuggestions(false);
+                    setActiveField('pickup'); // <-- Map taps will set pickup now
+                  }}
+                  onBlur={() => {
+                    // keep suggestions hidden when losing focus
+                    // (we keep activeField until user taps map OR selects suggestion)
+                    // but here we can also clear activeField if you'd like auto-clear on blur:
+                    // setActiveField(null);
                   }}
                 />
               </View>
             </View>
 
-            {/* Pickup Autocomplete Suggestions */}
             {showPickupSuggestions && pickupSuggestions.length > 0 && (
               <View style={styles.suggestionsContainer}>
                 <FlatList
@@ -388,25 +520,27 @@ export default function BookingScreen({ navigation, route }) {
               <View style={styles.inputContent}>
                 <Text style={styles.inputLabel}>Destination</Text>
                 <TextInput
-  ref={destinationInputRef}
-  style={styles.input}
-  placeholder="Search or tap map"
-  placeholderTextColor="#999"
-  value={destination}
-  onChangeText={(text) => {
-    setDestination(text);
-    searchPlaces(text, 'destination');
-  }}
-  onFocus={() => {
-    setEditingField('destination');      // ✅ FIX: allow map tap
-    setShowPickupSuggestions(false);
-  }}
-/>
-
+                  ref={destinationInputRef}
+                  style={styles.input}
+                  placeholder="Type or tap map"
+                  placeholderTextColor="#999"
+                  value={destination}
+                  onChangeText={(text) => {
+                    setDestination(text);
+                    searchPlaces(text, 'destination');
+                  }}
+                  onFocus={() => {
+                    setShowPickupSuggestions(false);
+                    setShowDestinationSuggestions(true);
+                    setActiveField('destination'); // <-- Map taps will set destination now
+                  }}
+                  onBlur={() => {
+                    // setActiveField(null);
+                  }}
+                />
               </View>
             </View>
 
-            {/* Destination Autocomplete Suggestions */}
             {showDestinationSuggestions && destinationSuggestions.length > 0 && (
               <View style={styles.suggestionsContainer}>
                 <FlatList
@@ -432,12 +566,17 @@ export default function BookingScreen({ navigation, route }) {
             <View style={styles.estimateRow}>
               <Text style={styles.estimateIcon}>⏱️</Text>
               <Text style={styles.estimateLabel}>Est. Time</Text>
-              <Text style={styles.estimateValue}>15 mins</Text>
+              <Text style={styles.estimateValue}>{calculatedETA ? `${calculatedETA} mins` : '-- mins'}</Text>
+            </View>
+            <View style={styles.estimateRow}>
+              <Text style={styles.estimateIcon}>📍</Text>
+              <Text style={styles.estimateLabel}>Distance</Text>
+              <Text style={styles.estimateValue}>{calculatedDistance ? `${calculatedDistance.toFixed(2)} km` : '-- km'}</Text>
             </View>
             <View style={styles.estimateRow}>
               <Text style={styles.estimateIcon}>💰</Text>
               <Text style={styles.estimateLabel}>Est. Fare</Text>
-              <Text style={styles.estimateValue}>$12.50</Text>
+              <Text style={styles.estimateValue}>{calculatedFare ? `$${calculatedFare.toFixed(2)}` : '$--'}</Text>
             </View>
           </View>
 
@@ -448,9 +587,9 @@ export default function BookingScreen({ navigation, route }) {
             </View>
           ) : (
             <TouchableOpacity
-              style={styles.confirmButton}
+              style={[styles.confirmButton, (!pickup || !destination || loading) ? { opacity: 0.7 } : {}]}
               onPress={handleBookRide}
-              disabled={loading}
+              disabled={loading || !pickup || !destination}
             >
               {loading ? (
                 <ActivityIndicator color={COLORS.textDark} />
@@ -465,6 +604,7 @@ export default function BookingScreen({ navigation, route }) {
   );
 }
 
+// Styles (unchanged visually, minor ordering)
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.primary },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 60, position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, backgroundColor: COLORS.primary },

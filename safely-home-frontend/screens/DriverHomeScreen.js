@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Switch, RefreshControl } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../config';
-import { updateDriverStatus, getAvailableRides, acceptRide, getDriverEarnings, logout } from '../services/api';
+import { updateDriverStatus, getAvailableRides, acceptRide, getDriverEarnings, getDriverStats, logout } from '../services/api';
 import socketService from '../services/socket';
 
 export default function DriverHomeScreen({ navigation }) {
   const [isOnline, setIsOnline] = useState(false);
   const [availableRides, setAvailableRides] = useState([]);
   const [earnings, setEarnings] = useState({ totalEarnings: '0.00', todayEarnings: '0.00', todayRides: 0 });
+  const [driverStats, setDriverStats] = useState({ totalRides: 0, averageRating: 0, reviews: [] }); // ✅ NEW
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
 
@@ -31,6 +32,7 @@ export default function DriverHomeScreen({ navigation }) {
     }
 
     await loadEarnings();
+    await loadStats(); // ✅ NEW: Load driver stats
     if (isOnline) {
       await loadAvailableRides();
     }
@@ -45,6 +47,18 @@ export default function DriverHomeScreen({ navigation }) {
     }
   };
 
+  // ✅ NEW: Load driver stats including reviews
+  const loadStats = async () => {
+    try {
+      const data = await getDriverStats();
+      if (data.success) {
+        setDriverStats(data.stats);
+      }
+    } catch (error) {
+      console.error('Failed to load driver stats:', error);
+    }
+  };
+
   const loadAvailableRides = async () => {
     try {
       const data = await getAvailableRides();
@@ -55,11 +69,9 @@ export default function DriverHomeScreen({ navigation }) {
   };
 
   const setupSocketListeners = () => {
-    // FIXED: Real-time ride request notification
     socketService.on('newRideRequest', (rideData) => {
       console.log('🚗 New ride request received:', rideData);
       
-      // Add to available rides list
       loadAvailableRides();
       
       Alert.alert(
@@ -73,7 +85,6 @@ export default function DriverHomeScreen({ navigation }) {
       );
     });
 
-    // FIXED: Navigate to tracking when ride is accepted
     socketService.on('rideAcceptedByYou', (data) => {
       console.log('✅ Ride accepted by you:', data);
       navigation.navigate('DriverTracking', {
@@ -101,39 +112,37 @@ export default function DriverHomeScreen({ navigation }) {
     }
   };
 
-const handleAcceptRide = async (rideId, rideData) => {
-  try {
-    const response = await acceptRide(rideId);
+  const handleAcceptRide = async (rideId, rideData) => {
+    try {
+      const response = await acceptRide(rideId);
 
-    // Normalize rider object (from rideData OR response)
-    const rider =
-      rideData?.riderName && rideData?.riderPhone
-        ? { name: rideData.riderName, phone: rideData.riderPhone }
-        : response?.ride?.rider
-        ? { name: response.ride.rider.name, phone: response.ride.rider.phone }
-        : null;
+      const rider =
+        rideData?.riderName && rideData?.riderPhone
+          ? { name: rideData.riderName, phone: rideData.riderPhone }
+          : response?.ride?.rider
+          ? { name: response.ride.rider.name, phone: response.ride.rider.phone }
+          : null;
 
-    Alert.alert('Ride Accepted!', 'Navigate to pickup location', [
-      {
-        text: 'Start Navigation',
-        onPress: () => {
-          navigation.navigate('DriverTracking', {
-            rideId: rideId,
-            rider: rider,
-            pickup: rideData.pickup,
-            destination: rideData.destination
-          });
+      Alert.alert('Ride Accepted!', 'Navigate to pickup location', [
+        {
+          text: 'Start Navigation',
+          onPress: () => {
+            navigation.navigate('DriverTracking', {
+              rideId: rideId,
+              rider: rider,
+              pickup: rideData.pickup,
+              destination: rideData.destination
+            });
+          }
         }
-      }
-    ]);
+      ]);
 
-    loadAvailableRides();
+      loadAvailableRides();
 
-  } catch (error) {
-    Alert.alert('Error', error.response?.data?.error || 'Failed to accept ride');
-  }
-};
-
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.error || 'Failed to accept ride');
+    }
+  };
 
   const handleLogout = async () => {
     Alert.alert('Logout', 'Are you sure?', [
@@ -198,6 +207,40 @@ const handleAcceptRide = async (rideId, rideData) => {
           </View>
         </View>
 
+        {/* ✅ NEW: Driver Stats Card with Reviews */}
+        <View style={styles.statsCard}>
+          <Text style={styles.cardTitle}>Your Performance</Text>
+          <View style={styles.performanceStats}>
+            <View style={styles.stat}>
+              <Text style={styles.statValue}>{driverStats.totalRides}</Text>
+              <Text style={styles.statLabel}>Total Rides</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.stat}>
+              <Text style={styles.statValue}>⭐ {driverStats.averageRating?.toFixed(1) || '0.0'}</Text>
+              <Text style={styles.statLabel}>Rating</Text>
+            </View>
+          </View>
+
+          {/* ✅ NEW: Display recent reviews */}
+          {driverStats.reviews && driverStats.reviews.length > 0 && (
+            <View style={styles.reviewsSection}>
+              <Text style={styles.reviewsTitle}>Recent Reviews</Text>
+              {driverStats.reviews.slice(0, 3).map((review, index) => (
+                <View key={index} style={styles.reviewItem}>
+                  <View style={styles.reviewHeader}>
+                    <Text style={styles.reviewerName}>{review.riderName}</Text>
+                    <Text style={styles.reviewRating}>⭐ {review.rating}</Text>
+                  </View>
+                  {review.comment && (
+                    <Text style={styles.reviewComment}>{review.comment}</Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
         <View style={styles.ridesSection}>
           <Text style={styles.sectionTitle}>
             {isOnline ? `Available Rides (${availableRides.length})` : 'Go online to see rides'}
@@ -229,7 +272,7 @@ const handleAcceptRide = async (rideId, rideData) => {
                   </Text>
                 </View>
                 <View style={styles.fareContainer}>
-                  <Text style={styles.rideFare}>${ride.fare}</Text>
+                  <Text style={styles.rideFare}>${ride.fare.toFixed(2)}</Text>
                   <Text style={styles.fareLabel}>Fare</Text>
                 </View>
               </View>
@@ -272,6 +315,16 @@ const styles = StyleSheet.create({
   statusValue: { fontSize: 20, fontWeight: 'bold', color: COLORS.text },
   statusOnline: { color: COLORS.accent },
   earningsCard: { backgroundColor: COLORS.secondary, marginHorizontal: 20, marginBottom: 20, padding: 25, borderRadius: 15, alignItems: 'center' },
+  // ✅ NEW: Stats card styling
+  statsCard: { backgroundColor: COLORS.secondary, marginHorizontal: 20, marginBottom: 20, padding: 20, borderRadius: 15 },
+  performanceStats: { flexDirection: 'row', width: '100%', marginBottom: 15 },
+  reviewsSection: { marginTop: 15, borderTopWidth: 1, borderTopColor: COLORS.primary, paddingTop: 15 },
+  reviewsTitle: { fontSize: 14, fontWeight: 'bold', color: COLORS.text, marginBottom: 10 },
+  reviewItem: { backgroundColor: COLORS.primary, padding: 12, borderRadius: 10, marginBottom: 10 },
+  reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
+  reviewerName: { fontSize: 13, fontWeight: 'bold', color: COLORS.text },
+  reviewRating: { fontSize: 13, color: COLORS.accent },
+  reviewComment: { fontSize: 12, color: COLORS.text, opacity: 0.8 },
   cardTitle: { fontSize: 16, color: COLORS.text, marginBottom: 10 },
   earningsAmount: { fontSize: 42, fontWeight: 'bold', color: COLORS.accent, marginBottom: 20 },
   earningsStats: { flexDirection: 'row', width: '100%' },
@@ -288,6 +341,7 @@ const styles = StyleSheet.create({
   rideCard: { backgroundColor: COLORS.secondary, borderRadius: 15, padding: 20, marginBottom: 15 },
   rideHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 15 },
   riderName: { fontSize: 18, fontWeight: 'bold', color: COLORS.text, marginBottom: 5 },
+  rideTime: { fontSize: 13, color: COLORS.text,opacity: 0.7, marginTop: 3 },
   rideTime: { fontSize: 13, color: COLORS.text, opacity: 0.7, marginTop: 3 },
   fareContainer: { alignItems: 'flex-end' },
   rideFare: { fontSize: 28, fontWeight: 'bold', color: COLORS.accent },

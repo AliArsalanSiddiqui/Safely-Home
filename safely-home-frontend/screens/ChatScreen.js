@@ -9,6 +9,7 @@ export default function ChatScreen({ navigation, route }) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUserName, setCurrentUserName] = useState(''); // ✅ FIXED: Track current user name
   const flatListRef = useRef(null);
 
   useEffect(() => {
@@ -26,6 +27,13 @@ export default function ChatScreen({ navigation, route }) {
     if (userData) {
       const user = JSON.parse(userData);
       setCurrentUserId(user.id);
+      setCurrentUserName(user.name); // ✅ FIXED: Set current user name
+      
+      console.log('✅ Chat loaded:', {
+        currentUser: user.name,
+        otherUser: otherUser?.name,
+        rideId: rideId
+      });
       
       // Request message history
       socketService.emit('getChatHistory', { rideId });
@@ -33,7 +41,6 @@ export default function ChatScreen({ navigation, route }) {
   };
 
   const setupSocketListeners = () => {
-    // Receive new messages
     socketService.on('newMessage', (message) => {
       console.log('📨 New message received:', message);
       if (message.rideId === rideId) {
@@ -42,7 +49,6 @@ export default function ChatScreen({ navigation, route }) {
       }
     });
 
-    // Receive message history
     socketService.on('messageHistory', (history) => {
       console.log('📜 Message history loaded:', history.length);
       setMessages(history);
@@ -56,7 +62,7 @@ export default function ChatScreen({ navigation, route }) {
     const message = {
       rideId: rideId,
       senderId: currentUserId,
-      senderName: userType === 'rider' ? 'You' : 'You',
+      senderName: currentUserName, // ✅ FIXED: Use actual current user name
       text: inputText.trim(),
       timestamp: new Date().toISOString()
     };
@@ -80,10 +86,10 @@ export default function ChatScreen({ navigation, route }) {
     return (
       <View style={[styles.messageContainer, isMyMessage ? styles.myMessage : styles.theirMessage]}>
         {!isMyMessage && (
-          <Text style={styles.senderName}>{otherUser?.name || 'User'}</Text>
+          <Text style={styles.senderName}>{item.senderName || 'User'}</Text>
         )}
         <Text style={styles.messageText}>{item.text}</Text>
-        <Text style={styles.messageTime} >
+        <Text style={styles.messageTime}>
           {new Date(item.timestamp).toLocaleTimeString('en-US', { 
             hour: '2-digit', 
             minute: '2-digit' 
@@ -104,9 +110,11 @@ export default function ChatScreen({ navigation, route }) {
           <Text style={styles.backButton}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>{otherUser?.name || 'Chat'} </Text>
+          {/* ✅ FIXED: Show actual other user name */}
+          <Text style={styles.headerTitle}>{otherUser?.name || 'Chat'}</Text>
           <Text style={styles.headerSubtitle}>
-            {userType === 'rider' ? 'Your Driver' : 'Your Rider'} </Text>
+            {userType === 'rider' ? 'Your Driver' : 'Your Rider'}
+          </Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -115,7 +123,7 @@ export default function ChatScreen({ navigation, route }) {
         ref={flatListRef}
         data={messages}
         renderItem={renderMessage}
-        keyExtractor={(item, index) => index.toString()}
+        keyExtractor={(item, index) => item._id?.toString() || index.toString()}
         contentContainerStyle={styles.messagesList}
         onContentSizeChange={scrollToBottom}
         ListEmptyComponent={
