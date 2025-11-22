@@ -16,15 +16,27 @@ const io = socketIo(server, {
     methods: ['GET', 'POST']
   } 
 });
+require('dotenv').config();
 
+const JWT_SECRET = process.env.JWT_SECRET;
+const MONGODB_URI = process.env.MONGODB_URI;
+const PORT = process.env.PORT || 5000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+if (!JWT_SECRET || !MONGODB_URI) {
+  console.error('❌ Missing required environment variables!');
+  process.exit(1);
+}
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/uploads', express.static('uploads'));
 
-// MongoDB Connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://safely_home_user:safelyhome123@cluster0.5gek3qr.mongodb.net/safelyhome?retryWrites=true&w=majority';
 
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ MongoDB Atlas Connected Successfully'))
@@ -120,7 +132,6 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // ============================================
 // HELPER FUNCTIONS
@@ -1059,7 +1070,6 @@ app.use((err, req, res, next) => {
 // START SERVER
 // ============================================
 
-const PORT = process.env.PORT || 5000;
 const HOST = '0.0.0.0';
 
 server.listen(PORT, HOST, () => {
