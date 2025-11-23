@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -16,20 +17,33 @@ const io = socketIo(server, {
     methods: ['GET', 'POST']
   } 
 });
-require('dotenv').config();
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const MONGODB_URI = process.env.MONGODB_URI;
 const PORT = process.env.PORT || 5000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-if (!JWT_SECRET || !MONGODB_URI) {
-  console.error('❌ Missing required environment variables!');
+if (!MONGODB_URI) {
+  console.error('❌ FATAL ERROR: MONGODB_URI not set in environment variables!');
+  console.error('Set it in Heroku: heroku config:set MONGODB_URI="your-url"');
   process.exit(1);
 }
+
+if (!JWT_SECRET) {
+  console.error('❌ FATAL ERROR: JWT_SECRET not set in environment variables!');
+  console.error('Set it in Heroku: heroku config:set JWT_SECRET="your-secret"');
+  process.exit(1);
+}
+console.log(`ℹ️  Environment: ${NODE_ENV}`);
+console.log(`ℹ️  MongoDB: Connected to Atlas`);
 // Middleware
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? ['https://yourdomain.com', 'https://www.yourdomain.com']  // Will update this later
+  : '*';
+
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
@@ -1072,15 +1086,13 @@ app.use((err, req, res, next) => {
 
 const HOST = '0.0.0.0';
 
-server.listen(PORT, HOST, () => {
+server.listen(PORT, () => {
   console.log('========================================');
-  console.log('🚗 SAFELY HOME BACKEND SERVER');
+  console.log('🚗 SAFELY HOME BACKEND - PRODUCTION MODE');
   console.log('========================================');
   console.log(`✅ Server running on port ${PORT}`);
-  console.log(`✅ Local:    http://localhost:${PORT}`);
-  console.log(`✅ Network:  Find your IP and use http://YOUR_IP:${PORT}`);
-  console.log('========================================');
-  console.log(`📊 MongoDB: ${MONGODB_URI.includes('atlas') ? 'Atlas (Cloud)' : 'Local'}`);
+  console.log(`✅ Environment: ${NODE_ENV}`);
+  console.log(`✅ MongoDB: Connected`);
   console.log('========================================');
 });
 
