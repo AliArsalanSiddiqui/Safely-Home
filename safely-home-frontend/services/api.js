@@ -1,8 +1,8 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// FIXED: Remove /api from baseURL since config.js has /api
-const API_URL = 'http://192.168.18.16:5000/api';
+
+import { API_URL } from '../config'; // <-- import your config
 
 const api = axios.create({
   baseURL: API_URL,
