@@ -1,3 +1,4 @@
+// server.js
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
@@ -11,37 +12,51 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, { 
-  cors: { 
-    origin: '*',
-    methods: ['GET', 'POST']
-  } 
-});
 
-
+// -----------------------------
+// Config & env checks
+// -----------------------------
 const JWT_SECRET = process.env.JWT_SECRET;
 const MONGODB_URI = process.env.MONGODB_URI;
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 if (!MONGODB_URI) {
   console.error('❌ FATAL ERROR: MONGODB_URI not set in environment variables!');
-  console.error('Set it in Heroku: heroku config:set MONGODB_URI="your-url"');
   process.exit(1);
 }
 
 if (!JWT_SECRET) {
   console.error('❌ FATAL ERROR: JWT_SECRET not set in environment variables!');
-  console.error('Set it in Heroku: heroku config:set JWT_SECRET="your-secret"');
   process.exit(1);
 }
+
 console.log(`ℹ️  Environment: ${NODE_ENV}`);
-console.log(`ℹ️  MongoDB: Connected to Atlas`);
-// Middleware
+
+// -----------------------------
+// Allowed origins (MUST be defined BEFORE using it with Socket.IO / CORS)
+// -----------------------------
 const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? ['https://yourdomain.com', 'https://www.yourdomain.com']  // Will update this later
+  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
   : '*';
 
+// -----------------------------
+// Socket.IO initialization (uses allowedOrigins)
+// -----------------------------
+const io = socketIo(server, { 
+  cors: { 
+    origin: allowedOrigins,
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000
+});
+
+// -----------------------------
+// Middleware
+// -----------------------------
 app.use(cors({
   origin: allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -51,7 +66,9 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/uploads', express.static('uploads'));
 
-
+// -----------------------------
+// MongoDB connection
+// -----------------------------
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ MongoDB Atlas Connected Successfully'))
   .catch(err => console.error('❌ MongoDB Connection Error:', err));
@@ -145,7 +162,6 @@ const upload = multer({
   storage: storage,
   limits: { fileSize: 5 * 1024 * 1024 }
 });
-
 
 // ============================================
 // HELPER FUNCTIONS
@@ -800,6 +816,7 @@ app.post('/api/ride/rate', authenticateToken, async (req, res) => {
     });
   }
 });
+
 // Get Ride Details
 app.get('/api/rides/:rideId', authenticateToken, async (req, res) => {
   try {
@@ -816,6 +833,7 @@ app.get('/api/rides/:rideId', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
 // ============================================
 // DRIVER ROUTES
 // ============================================
@@ -1021,7 +1039,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // FIXED: Chat - Now saves to MongoDB instead of memory
+  // Chat - saves to MongoDB instead of memory
   socket.on('sendMessage', async (message) => {
     try {
       console.log('💬 Message received:', message);
@@ -1040,7 +1058,7 @@ io.on('connection', (socket) => {
       await newMessage.save();
       console.log('✅ Message saved to MongoDB');
       
-      // Broadcast to all users in this ride
+      // Broadcast to all users in this ride (emit to room might be better if you join users to ride rooms)
       io.emit('newMessage', {
         _id: newMessage._id,
         rideId,
@@ -1055,7 +1073,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // FIXED: Get chat history from MongoDB
+  // Get chat history from MongoDB
   socket.on('getChatHistory', async ({ rideId }) => {
     try {
       const messages = await Message.find({ rideId })
@@ -1072,18 +1090,16 @@ io.on('connection', (socket) => {
 });
 
 // ============================================
-// ERROR HANDLER
+// GLOBAL ERROR HANDLER (place after routes)
 // ============================================
-
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err);
-  res.status(500).json({ success: false, error: 'Internal server error', message: err.message });
+  res.status(err.status || 500).json({ success: false, error: err.message || 'Internal server error' });
 });
 
 // ============================================
 // START SERVER
 // ============================================
-
 const HOST = '0.0.0.0';
 
 server.listen(PORT, () => {
@@ -1092,12 +1108,27 @@ server.listen(PORT, () => {
   console.log('========================================');
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`✅ Environment: ${NODE_ENV}`);
-  console.log(`✅ MongoDB: Connected`);
   console.log('========================================');
 });
 
 process.on('unhandledRejection', (err) => {
   console.error('❌ Unhandled Rejection:', err);
 });
+
+const shutdownHandler = async () => {
+  console.log('⛔ Shutting down gracefully...');
+  try {
+    await mongoose.connection.close();
+  } catch (e) {
+    console.error('❌ Error closing mongoose connection:', e);
+  }
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', shutdownHandler);
+process.on('SIGINT', shutdownHandler);
 
 module.exports = server;

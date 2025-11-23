@@ -33,7 +33,11 @@
         "ACCESS_COARSE_LOCATION",
         "CAMERA",
         "INTERNET",
-        "ACCESS_NETWORK_STATE"
+        "ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ],
       "config": {
         "googleMaps": {
@@ -60,13 +64,14 @@
     ],
     "updates": {
       "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/YOUR_PROJECT_ID"
+      "url": "https://expo.dev/accounts/aliarsalansiddiqui/projects/safelyhome"
     },
     "extra": {
       "eas": {
-        "projectId": "YOUR_PROJECT_ID"
+        "projectId": "b8ca92cc-70e7-4870-bd36-47b1019f8dd1"
       }
-    }
+    },
+    "owner": "aliarsalansiddiqui"
   },
   "eas": {
     "build": {

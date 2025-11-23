@@ -1,12 +1,13 @@
 const isDevelopment = __DEV__;
 
+// Replace with your Render URL
 export const API_URL = isDevelopment 
   ? 'http://192.168.18.16:5000/api'  // Local development
-  : 'https://yourdomain.com/api';     // Production server
+  : 'https://your-app-name.onrender.com/api';  // Production Render URL
 
 export const SOCKET_URL = isDevelopment
   ? 'http://192.168.18.16:5000'
-  : 'https://yourdomain.com';
+  : 'https://your-app-name.onrender.com';
 
 export const GOOGLE_MAPS_API_KEY = 'AIzaSyCzsOcj0ZcFzNfyqLskuOQQC2ttgB_0Pyk';
 
