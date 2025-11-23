@@ -45,7 +45,7 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
 // -----------------------------
 const io = socketIo(server, { 
   cors: { 
-    origin: allowedOrigins,
+    origin: true,
     methods: ['GET', 'POST'],
     credentials: true
   },
@@ -58,7 +58,7 @@ const io = socketIo(server, {
 // Middleware
 // -----------------------------
 app.use(cors({
-  origin: allowedOrigins,
+  origin: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
