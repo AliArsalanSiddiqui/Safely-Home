@@ -9,8 +9,8 @@ safely-home-backend/.env
 # Build output
 build/
 dist/
-frontend/dist/
-backend/dist/
+safely-home-frontend/dist/
+safely-home-backend/dist/
 
 # Logs
 npm-debug.log*
