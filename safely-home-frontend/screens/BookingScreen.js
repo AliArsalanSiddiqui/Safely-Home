@@ -392,7 +392,7 @@ export default function BookingScreen({ navigation, route }) {
         setCurrentRideId(response.rideId);
         Alert.alert(
           'Finding Driver',
-          `Looking for ${response.availableDrivers} available drivers...\n\n💰 Fare: $${response.calculatedFare}\n📍 Distance: ${response.distance}\n⏱️ ETA: ${response.estimatedTime}`,
+          `Looking for ${response.availableDrivers} available drivers...\n\n💰 Fare: ${response.calculatedFare} pkr\n📍 Distance: ${response.distance}\n⏱️ ETA: ${response.estimatedTime}`,
           [
             {
               text: 'Cancel Search',
