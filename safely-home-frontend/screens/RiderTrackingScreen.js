@@ -254,7 +254,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
               </Text>
             </View>
             <View style={styles.driverDetails}>
-              <Text style={styles.driverName}>{driver?.name || 'Driver'}</Text>
+              <Text style={styles.driverName}>{driver?.name || 'Driver'} </Text>
               <View style={styles.ratingContainer}>
                 <Text style={styles.ratingStar}>⭐</Text>
                 <Text style={styles.ratingText}>
@@ -294,7 +294,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
 
-          {/* ✅ FIXED: Now shows locations from params or fetched from API */}
+          
           <View style={styles.tripInfo}>
             <View style={styles.tripRow}>
               <Text style={styles.tripIcon}>📍</Text>
@@ -313,12 +313,11 @@ export default function RiderTrackingScreen({ navigation, route }) {
             </View>
           </View>
 
-          {/* Show fare and distance if available */}
           {rideDetails && (
             <View style={styles.rideDetailsCard}>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>💰 Fare </Text>
-                <Text style={styles.detailValue}>${rideDetails.fare?.toFixed(2) || '0.00'}</Text>
+                <Text style={styles.detailValue}>{rideDetails.fare?.toFixed(2) || '0.00'} pkr</Text>
               </View>
               {rideDetails.distance && (
                 <View style={styles.detailRow}>

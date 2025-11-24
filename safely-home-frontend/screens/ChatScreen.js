@@ -111,10 +111,9 @@ export default function ChatScreen({ navigation, route }) {
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           {/* ✅ FIXED: Show actual other user name */}
-          <Text style={styles.headerTitle}>{otherUser?.name || 'Chat'}</Text>
+          <Text style={styles.headerTitle}>{otherUser?.name || 'Chat'} </Text>
           <Text style={styles.headerSubtitle}>
-            {userType === 'rider' ? 'Your Driver' : 'Your Rider'}
-          </Text>
+            {userType === 'rider' ? 'Your Driver' : 'Your Rider'} </Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -129,8 +128,8 @@ export default function ChatScreen({ navigation, route }) {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>💬</Text>
-            <Text style={styles.emptyText}>No messages yet</Text>
-            <Text style={styles.emptySubtext}>Send a message to start chatting</Text>
+            <Text style={styles.emptyText}>No messages yet </Text>
+            <Text style={styles.emptySubtext}>Send a message to start chatting </Text>
           </View>
         }
       />
@@ -143,13 +142,11 @@ export default function ChatScreen({ navigation, route }) {
           value={inputText}
           onChangeText={setInputText}
           multiline
-          maxLength={500}
-        />
+          maxLength={500} />
         <TouchableOpacity 
           style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
           onPress={sendMessage}
-          disabled={!inputText.trim()}
-        >
+          disabled={!inputText.trim()} >
           <Text style={styles.sendButtonText}>Send</Text>
         </TouchableOpacity>
       </View>

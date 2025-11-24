@@ -274,7 +274,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
       case 'heading_to_pickup':
         return (
           <TouchableOpacity style={styles.primaryButton} onPress={handleArrivedAtPickup}>
-            <Text style={styles.primaryButtonText}>✓ I've Arrived at Pickup</Text>
+            <Text style={styles.primaryButtonText}>✓ I've Arrived at Pickup </Text>
           </TouchableOpacity>
         );
       case 'at_pickup':
@@ -312,8 +312,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
             <Text style={styles.statusBadgeText}>
               {rideStatus === 'heading_to_pickup' && '🚗 Heading to Pickup'}
               {rideStatus === 'at_pickup' && '⏳ At Pickup Location'}
-              {rideStatus === 'in_progress' && '🚀 Trip in Progress'}
-            </Text>
+              {rideStatus === 'in_progress' && '🚀 Trip in Progress'} </Text>
           </View>
           <Text style={styles.statusText}>{getStatusText()}</Text>
         </View>
@@ -326,8 +325,8 @@ export default function DriverTrackingScreen({ navigation, route }) {
               </Text>
             </View>
             <View style={styles.riderDetails}>
-              <Text style={styles.riderName}>{riderInfo?.name || 'Rider'}</Text>
-              <Text style={styles.riderPhone}>📞 {riderInfo?.phone || 'Phone'}</Text>
+              <Text style={styles.riderName}>{riderInfo?.name || 'Rider'} </Text>
+              <Text style={styles.riderPhone}>📞 {riderInfo?.phone || 'Phone'} </Text>
             </View>
           </View>
 
@@ -382,16 +381,16 @@ export default function DriverTrackingScreen({ navigation, route }) {
           <View style={styles.fareInfo}>
             <View style={styles.fareRow}>
               <Text style={styles.fareLabel}>Trip Fare</Text>
-              <Text style={styles.fareValue}>${fare.toFixed(2)}</Text>
+              <Text style={styles.fareValue}>{fare.toFixed(2)} pkr </Text>
             </View>
             <View style={styles.fareRow}>
-              <Text style={styles.fareLabel}>Your Earnings (80%)</Text>
-              <Text style={styles.fareEarnings}>${earnings}</Text>
+              <Text style={styles.fareLabel}>Your Earnings (80%) </Text>
+              <Text style={styles.fareEarnings}>{earnings} pkr </Text>
             </View>
             {rideDetails?.distance && (
               <View style={styles.fareRow}>
                 <Text style={styles.fareLabel}>Distance</Text>
-                <Text style={styles.fareValue}>{rideDetails.distance.toFixed(2)} km</Text>
+                <Text style={styles.fareValue}>{rideDetails.distance.toFixed(2)} km </Text>
               </View>
             )}
             {rideDetails?.estimatedTime && (

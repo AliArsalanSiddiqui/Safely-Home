@@ -76,7 +76,7 @@ export default function DriverHomeScreen({ navigation }) {
       
       Alert.alert(
         '🚗 New Ride Request!',
-        `Pickup: ${rideData.pickup}\nFare: $${rideData.fare}`,
+        `Pickup: ${rideData.pickup}\nFare: ${rideData.fare} pkr`,
         [
           { text: 'Ignore', style: 'cancel' },
           { text: 'View', onPress: () => loadAvailableRides() },
@@ -192,8 +192,8 @@ export default function DriverHomeScreen({ navigation }) {
         </View>
 
         <View style={styles.earningsCard}>
-          <Text style={styles.cardTitle}>Today's Earnings</Text>
-          <Text style={styles.earningsAmount}>${earnings.todayEarnings}</Text>
+          <Text style={styles.cardTitle}>Today's Earnings </Text>
+          <Text style={styles.earningsAmount}>{earnings.todayEarnings} pkr</Text>
           <View style={styles.earningsStats}>
             <View style={styles.stat}>
               <Text style={styles.statValue}>{earnings.todayRides}</Text>
@@ -201,7 +201,7 @@ export default function DriverHomeScreen({ navigation }) {
             </View>
             <View style={styles.statDivider} />
             <View style={styles.stat}>
-              <Text style={styles.statValue}>${earnings.totalEarnings}</Text>
+              <Text style={styles.statValue}>{earnings.totalEarnings} pkr</Text>
               <Text style={styles.statLabel}>Total Earnings</Text>
             </View>
           </View>
@@ -218,7 +218,7 @@ export default function DriverHomeScreen({ navigation }) {
             <View style={styles.statDivider} />
             <View style={styles.stat}>
               <Text style={styles.statValue}>⭐ {driverStats.averageRating?.toFixed(1) || '0.0'}</Text>
-              <Text style={styles.statLabel}>Rating</Text>
+              <Text style={styles.statLabel}>Rating </Text>
             </View>
           </View>
 
@@ -272,8 +272,8 @@ export default function DriverHomeScreen({ navigation }) {
                   </Text>
                 </View>
                 <View style={styles.fareContainer}>
-                  <Text style={styles.rideFare}>${ride.fare.toFixed(2)}</Text>
-                  <Text style={styles.fareLabel}>Fare</Text>
+                  <Text style={styles.rideFare}>{ride.fare.toFixed(2)} pkr</Text>
+                  <Text style={styles.fareLabel}>Fare </Text>
                 </View>
               </View>
 

@@ -154,7 +154,7 @@ export default function BookingScreen({ navigation, route }) {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = R * c;
 
-    const fare = Math.max(2.0 + (distance * 0.20), 2.50);
+    const fare = Math.max(2.0 + (distance * 20), 2.50);
     const eta = Math.max(Math.ceil((distance / 40) * 60), 2); // 40 km/h
 
     setCalculatedDistance(distance);
@@ -582,7 +582,7 @@ export default function BookingScreen({ navigation, route }) {
             <View style={styles.estimateRow}>
               <Text style={styles.estimateIcon}>💰</Text>
               <Text style={styles.estimateLabel}>Est. Fare</Text>
-              <Text style={styles.estimateValue}>{calculatedFare ? `$${calculatedFare.toFixed(2)}` : '$--'}</Text>
+              <Text style={styles.estimateValue}>{calculatedFare ? `${calculatedFare.toFixed(2)} pkr` : 'pkr--'}</Text>
             </View>
           </View>
 
