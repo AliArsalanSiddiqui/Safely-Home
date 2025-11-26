@@ -48,7 +48,6 @@ export default function GenderPreferenceScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Back button only shows if coming from RiderHome */}
       <TouchableOpacity 
         style={styles.backButton} 
         onPress={() => navigation.canGoBack() && navigation.goBack()}
