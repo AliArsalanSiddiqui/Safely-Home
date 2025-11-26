@@ -490,7 +490,11 @@ app.post('/api/location', authenticateToken, async (req, res) => {
 // RIDE ROUTES
 // ============================================
 
-// Request Ride (UPDATED with distance and fare calculation)
+// ============================================
+// REQUEST RIDE ROUTE (with gender filtering)
+// ============================================
+
+// Request Ride (UPDATED with distance, fare calculation, and GENDER FILTERING)
 app.post('/api/ride/request', authenticateToken, async (req, res) => {
   try {
     const { pickup, destination, fare } = req.body;
@@ -501,6 +505,12 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
     if (!rider) {
       return res.status(404).json({ success: false, error: 'Rider not found' });
     }
+
+    console.log('📋 Rider info:', {
+      name: rider.name,
+      gender: rider.gender,
+      genderPreference: rider.genderPreference
+    });
 
     // Calculate distance and fare
     const pickupCoords = pickup.coordinates;
@@ -543,18 +553,40 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
 
     await ride.save();
 
-    const genderFilter = {};
-    if (rider.genderPreference && rider.genderPreference !== 'any') {
-      genderFilter.gender = rider.genderPreference;
+    // ✅ FIXED: Gender-based filtering
+    // Build filter based on RIDER's gender and genderPreference
+    let driverFilter = {
+      userType: 'driver',
+      isOnline: true
+    };
+
+    // ✅ NEW LOGIC:
+    // If rider is FEMALE, they prefer FEMALE drivers by default (unless they selected "no preference")
+    // If rider is MALE, they prefer MALE drivers by default (unless they selected "no preference")
+    // If genderPreference is 'any', show both
+    
+    if (rider.genderPreference === 'any') {
+      // No preference - show all drivers
+      console.log('✅ Rider has NO PREFERENCE - showing all drivers');
+    } else if (rider.genderPreference) {
+      // Rider selected specific preference (male, female, or any)
+      if (rider.genderPreference !== 'any') {
+        driverFilter.gender = rider.genderPreference;
+        console.log(`✅ Filtering drivers by rider preference: ${rider.genderPreference}`);
+      }
+    } else {
+      // If no explicit preference set, use rider's own gender as default
+      driverFilter.gender = rider.gender;
+      console.log(`✅ Filtering drivers by rider's gender: ${rider.gender}`);
     }
 
-    const drivers = await User.find({
-      userType: 'driver',
-      isOnline: true,
-      ...genderFilter
-    }).limit(20);
+    const drivers = await User.find(driverFilter).limit(20);
 
-    console.log(`✅ Found ${drivers.length} available drivers matching preference: ${rider.genderPreference || 'any'}`);
+    console.log(`✅ Found ${drivers.length} available drivers matching filter:`, {
+      riderGender: rider.gender,
+      genderPreference: rider.genderPreference,
+      driverFilter: driverFilter
+    });
 
     drivers.forEach(driver => {
       console.log('🔔 Notifying driver:', driver.name, driver._id.toString());
@@ -562,6 +594,7 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
         rideId: ride._id,
         riderId: rider._id,
         riderName: rider.name,
+        riderGender: rider.gender,
         pickup: pickup.address,
         destination: destination.address,
         fare: calculatedFare.toFixed(2),
@@ -584,6 +617,7 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
 
 // Get Available Rides
 app.get('/api/rides/available', authenticateToken, async (req, res) => {
@@ -622,7 +656,11 @@ app.get('/api/rides/available', authenticateToken, async (req, res) => {
   }
 });
 
-// Accept Ride
+// ============================================
+// ACCEPT RIDE ROUTE (emit driverAccepted to RIDER)
+// ============================================
+
+// Accept Ride (FIXED: Emit driverAccepted to rider)
 app.post('/api/ride/accept', authenticateToken, async (req, res) => {
   try {
     const { rideId } = req.body;
@@ -651,7 +689,9 @@ app.post('/api/ride/accept', authenticateToken, async (req, res) => {
     
     console.log('✅ Ride accepted by driver:', driver.name);
 
-    // Emit to rider with complete driver info
+    // ✅ FIXED: Emit to RIDER with complete driver info
+    console.log('📡 Emitting driverAccepted to rider:', ride.riderId._id.toString());
+    
     io.to(ride.riderId._id.toString()).emit('driverAccepted', {
       rideId: ride._id,
       driver: {
@@ -662,7 +702,9 @@ app.post('/api/ride/accept', authenticateToken, async (req, res) => {
         totalRides: totalRides,
         vehicleInfo: driver.vehicleInfo,
         gender: driver.gender
-      }
+      },
+      pickup: ride.pickup?.address || 'Pickup location',
+      destination: ride.destination?.address || 'Destination'
     });
 
     // Emit to driver

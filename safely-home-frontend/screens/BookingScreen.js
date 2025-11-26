@@ -29,6 +29,7 @@ export default function BookingScreen({ navigation, route }) {
   const [userId, setUserId] = useState(null);
   const [currentRideId, setCurrentRideId] = useState(null);
   const [token, setToken] = useState(null);
+  const [userGender, setUserGender] = useState(null); // ✅ NEW: Track user's gender
 
   // Track which field is being edited for map tapping
   const [activeMapField, setActiveMapField] = useState(null);
@@ -102,6 +103,7 @@ export default function BookingScreen({ navigation, route }) {
       if (userData) {
         const user = JSON.parse(userData);
         setUserId(user.id);
+        setUserGender(user.gender); // ✅ NEW: Set user's gender
         await updateLocation(location.coords.latitude, location.coords.longitude);
         socketService.connect(user.id);
       }
@@ -161,7 +163,7 @@ export default function BookingScreen({ navigation, route }) {
     });
   };
 
-  // ✅ FIXED: Autocomplete with debouncing
+  // Autocomplete with debouncing
   const searchPlaces = (query, field) => {
     if (!query || query.length < 2) {
       if (field === 'pickup') {
@@ -174,7 +176,6 @@ export default function BookingScreen({ navigation, route }) {
       return;
     }
 
-    // Clear previous debounce timer
     if (field === 'pickup' && pickupDebounceRef.current) {
       clearTimeout(pickupDebounceRef.current);
     }
@@ -182,7 +183,6 @@ export default function BookingScreen({ navigation, route }) {
       clearTimeout(destinationDebounceRef.current);
     }
 
-    // Set new debounce timer (wait 500ms before searching)
     const timer = setTimeout(() => {
       fetchPlacesSuggestions(query, field);
     }, 500);
@@ -194,7 +194,6 @@ export default function BookingScreen({ navigation, route }) {
     }
   };
 
-  // Fetch suggestions from Google Places API
   const fetchPlacesSuggestions = async (query, field) => {
     try {
       const locationBias = currentLocation
@@ -243,7 +242,6 @@ export default function BookingScreen({ navigation, route }) {
     }
   };
 
-  // When user picks a suggestion from autocomplete
   const selectSuggestion = async (suggestion, field) => {
     try {
       const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${suggestion.placeId}&fields=geometry,name,formatted_address&key=${GOOGLE_MAPS_API_KEY}`;
@@ -268,9 +266,8 @@ export default function BookingScreen({ navigation, route }) {
           setDestinationSuggestions([]);
         }
 
-        setActiveMapField(null); // Clear map mode
+        setActiveMapField(null);
 
-        // Center map on selected location
         if (mapRef.current) {
           mapRef.current.animateToRegion({
             ...coords,
@@ -283,7 +280,6 @@ export default function BookingScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Place details error:', error);
-      // Fallback: just use description
       if (field === 'pickup') {
         setPickup(suggestion.description);
         setShowPickupSuggestions(false);
@@ -295,9 +291,8 @@ export default function BookingScreen({ navigation, route }) {
     }
   };
 
-  // ✅ FIXED: Map press only works when field is active
   const handleMapPress = async (event) => {
-    if (!activeMapField) return; // Only works if a field is actively set for map selection
+    if (!activeMapField) return;
 
     const { coordinate } = event.nativeEvent;
 
@@ -317,7 +312,7 @@ export default function BookingScreen({ navigation, route }) {
         setDestinationSuggestions([]);
       }
 
-      setActiveMapField(null); // Reset after selection
+      setActiveMapField(null);
 
       if (mapRef.current) {
         mapRef.current.animateToRegion({
@@ -330,7 +325,6 @@ export default function BookingScreen({ navigation, route }) {
       console.log(`✅ Map ${activeMapField} selected:`, textAddress);
     } catch (error) {
       console.error('Reverse geocode error:', error);
-      // Still update coordinates even if address fails
       if (activeMapField === 'pickup') {
         setCurrentLocation(coordinate);
         setPickup('Selected pickup location');
@@ -342,21 +336,34 @@ export default function BookingScreen({ navigation, route }) {
     }
   };
 
-  // Socket listeners
+  // ✅ FIXED: Socket listeners - Listen for driverAccepted on ride request
   const setupSocketListeners = () => {
+    // ✅ FIXED: This listener now fires when driver accepts
     socketService.on('driverAccepted', (data) => {
-      console.log('✅ Driver accepted:', data);
+      console.log('✅ Driver accepted (Rider):', data);
       setSearchingDriver(false);
 
-      Alert.alert('🚗 Driver Found!', `${data.driver.name} is coming to pick you up!`, [
+      if (!data.rideId) {
+        console.error('❌ No rideId in driverAccepted event');
+        return;
+      }
+
+      Alert.alert('🚗 Driver Found!', `${data.driver?.name || 'Driver'} is coming to pick you up!`, [
         {
           text: 'View Details',
           onPress: () => {
-            navigation.replace('RiderTracking', {
-              rideId: data.rideId || currentRideId,
+            console.log('🔄 Navigating to RiderTracking with:', {
+              rideId: data.rideId,
               driver: data.driver,
               pickup,
               destination
+            });
+            
+            navigation.replace('RiderTracking', {
+              rideId: data.rideId,
+              driver: data.driver,
+              pickup: pickup,
+              destination: destination
             });
           }
         }
@@ -371,7 +378,7 @@ export default function BookingScreen({ navigation, route }) {
     });
   };
 
-  // Booking
+  // ✅ FIXED: Booking - Pass gender preference to backend
   const handleBookRide = async () => {
     if (!pickup || !destination) {
       Alert.alert('Error', 'Please enter both pickup and destination');
@@ -406,10 +413,15 @@ export default function BookingScreen({ navigation, route }) {
         fare
       };
 
+      console.log('📝 Booking ride with user gender:', userGender);
+
       const response = await requestRide(rideData.pickup, rideData.destination, rideData.fare);
 
       if (response.success) {
         setCurrentRideId(response.rideId);
+        
+        console.log('✅ Ride request sent:', response.rideId);
+
         Alert.alert(
           'Finding Driver',
           `Looking for ${response.availableDrivers} available drivers...\n\n💰 Fare: ${response.calculatedFare} pkr\n📍 Distance: ${response.distance}\n⏱️ ETA: ${response.estimatedTime}`,
