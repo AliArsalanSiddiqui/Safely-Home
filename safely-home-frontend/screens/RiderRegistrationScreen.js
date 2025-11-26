@@ -75,20 +75,19 @@ export default function RiderRegistrationScreen({ navigation }) {
           <Text style={styles.label}>Phone Number</Text>
           <TextInput style={styles.input} placeholder="Enter your phone number" placeholderTextColor="#999" value={formData.phone} onChangeText={(v) => updateField('phone', v)} keyboardType="phone-pad" />
 
-          {/* GENDER SELECTION - NEW */}
           <Text style={styles.label}>Gender</Text>
           <View style={styles.genderContainer}>
             <TouchableOpacity
               style={[styles.genderButton, formData.gender === 'male' && styles.genderButtonActive]}
               onPress={() => updateField('gender', 'male')}
             >
-              <Text style={[styles.genderText, formData.gender === 'male' && styles.genderTextActive]}>👨 Male</Text>
+              <Text style={[styles.genderText, formData.gender === 'male' && styles.genderTextActive]}>👨 Male </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.genderButton, formData.gender === 'female' && styles.genderButtonActive]}
               onPress={() => updateField('gender', 'female')}
             >
-              <Text style={[styles.genderText, formData.gender === 'female' && styles.genderTextActive]}>👩 Female</Text>
+              <Text style={[styles.genderText, formData.gender === 'female' && styles.genderTextActive]}>👩 Female </Text>
             </TouchableOpacity>
           </View>
 

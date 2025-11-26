@@ -30,8 +30,13 @@ export default function LoginScreen({ navigation }) {
         }
       }
     } catch (error) {
-      Alert.alert('Login Failed', error.response?.data?.error || 'Check your credentials');
-    } finally {
+        if (error.customError === "Backend Inactive") {
+        Alert.alert("Backend Inactive", error.message);
+        } else {
+        Alert.alert("Login Failed", error.message || "Check your credentials");
+        }
+     }
+ finally {
       setLoading(false);
     }
   };

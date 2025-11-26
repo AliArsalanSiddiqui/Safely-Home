@@ -180,12 +180,12 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c; // Distance in km
 }
 
-// Calculate fare: $0.20 per km + base fare
+// Calculate fare: 20 pkr per km + base fare
 function calculateFare(distanceKm) {
-  const baseFare = 2.00; // Base fare
-  const perKmRate = 0.20;
+  const baseFare = 50; // Base fare
+  const perKmRate = 20;
   const fare = baseFare + (distanceKm * perKmRate);
-  return Math.max(fare, 2.50); // Minimum fare $2.50
+  return Math.max(fare, 50); // Minimum fare 50 pkr
 }
 
 // Calculate ETA: Average speed 40 km/h in city
@@ -507,7 +507,7 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
     const destCoords = destination.coordinates;
     
     let calculatedDistance = 0;
-    let calculatedFare = fare || 2.50;
+    let calculatedFare = fare || 50;
     let calculatedETA = 15;
     
     if (pickupCoords && destCoords && pickupCoords.length === 2 && destCoords.length === 2) {
@@ -520,7 +520,7 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
       
       console.log('📊 Calculated:', {
         distance: calculatedDistance.toFixed(2) + ' km',
-        fare: '$' + calculatedFare.toFixed(2),
+        fare: calculatedFare.toFixed(2) + ' pkr',
         eta: calculatedETA + ' mins'
       });
     }
@@ -789,7 +789,7 @@ app.post('/api/ride/rate', authenticateToken, async (req, res) => {
     const totalRating = allRatedRides.reduce((sum, r) => sum + r.feedback.rating, 0);
     const newAverageRating = completedRidesWithRatings > 0 
       ? totalRating / completedRidesWithRatings 
-      : 5.0;
+      : 0;
     
     driver.rating = Number(newAverageRating.toFixed(2));
     await driver.save();

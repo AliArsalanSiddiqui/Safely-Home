@@ -99,20 +99,19 @@ export default function DriverRegistrationScreen({ navigation }) {
           <Text style={styles.label}>Phone Number</Text>
           <TextInput style={styles.input} placeholder="Enter your phone number" placeholderTextColor="#999" value={formData.phone} onChangeText={(v) => updateField('phone', v)} keyboardType="phone-pad" />
 
-          {/* GENDER SELECTION - NEW */}
           <Text style={styles.label}>Gender</Text>
           <View style={styles.genderContainer}>
             <TouchableOpacity
               style={[styles.genderButton, formData.gender === 'male' && styles.genderButtonActive]}
               onPress={() => updateField('gender', 'male')}
             >
-              <Text style={[styles.genderText, formData.gender === 'male' && styles.genderTextActive]}>👨 Male</Text>
+              <Text style={[styles.genderText, formData.gender === 'male' && styles.genderTextActive]}>👨 Male </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.genderButton, formData.gender === 'female' && styles.genderButtonActive]}
               onPress={() => updateField('gender', 'female')}
             >
-              <Text style={[styles.genderText, formData.gender === 'female' && styles.genderTextActive]}>👩 Female</Text>
+              <Text style={[styles.genderText, formData.gender === 'female' && styles.genderTextActive]}>👩 Female </Text>
             </TouchableOpacity>
           </View>
 
@@ -123,7 +122,7 @@ export default function DriverRegistrationScreen({ navigation }) {
           <TextInput style={styles.input} placeholder="e.g. Toyota Camry 2020" placeholderTextColor="#999" value={formData.vehicleModel} onChangeText={(v) => updateField('vehicleModel', v)} />
 
           <Text style={styles.label}>Password</Text>
-          <TextInput style={styles.input} placeholder="Enter password (min 6 characters)" placeholderTextColor="#999" value={formData.password} onChangeText={(v) => updateField('password', v)} secureTextEntry />
+          <TextInput style={styles.input} placeholder="Enter password(min 6 characters)" placeholderTextColor="#999" value={formData.password} onChangeText={(v) => updateField('password', v)} secureTextEntry />
 
           <Text style={styles.label}>Confirm Password</Text>
           <TextInput style={styles.input} placeholder="Confirm your password" placeholderTextColor="#999" value={formData.confirmPassword} onChangeText={(v) => updateField('confirmPassword', v)} secureTextEntry />
@@ -136,7 +135,7 @@ export default function DriverRegistrationScreen({ navigation }) {
               ) : (
                 <>
                   <Text style={styles.cameraIcon}>📷</Text>
-                  <Text style={styles.cameraText}>Click to verify your identity</Text>
+                  <Text style={styles.cameraText}>Click to verify your identity </Text>
                   <Text style={styles.cameraSubtext}>Start Face Recognition</Text>
                 </>
               )}

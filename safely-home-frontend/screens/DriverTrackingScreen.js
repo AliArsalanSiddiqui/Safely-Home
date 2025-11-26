@@ -194,9 +194,9 @@ export default function DriverTrackingScreen({ navigation, route }) {
         onPress: async () => {
           try {
             await completeRide(rideId);
-            const fare = rideDetails?.fare || 12.50;
+            const fare = rideDetails?.fare || 50;
             const earnings = (fare * 0.80).toFixed(2);
-            Alert.alert('✅ Ride Completed!', `Great job! Earnings: $${earnings}`, [
+            Alert.alert('✅ Ride Completed!', `Great job! Earnings: ${earnings} pkr`, [
               { text: 'Back to Home', onPress: () => navigation.replace('DriverHome') }
             ]);
           } catch (error) {
@@ -293,7 +293,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
     }
   };
 
-  const fare = rideDetails?.fare || 12.50;
+  const fare = rideDetails?.fare || 50;
   const earnings = (fare * 0.80).toFixed(2);
 
   return (
@@ -384,7 +384,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
               <Text style={styles.fareValue}>{fare.toFixed(2)} pkr </Text>
             </View>
             <View style={styles.fareRow}>
-              <Text style={styles.fareLabel}>Your Earnings (80%) </Text>
+              <Text style={styles.fareLabel}>Your Earnings (80%)</Text>
               <Text style={styles.fareEarnings}>{earnings} pkr </Text>
             </View>
             {rideDetails?.distance && (
@@ -405,7 +405,6 @@ export default function DriverTrackingScreen({ navigation, route }) {
             {getActionButton()}
 
             <View style={styles.secondaryButtons}>
-              {/* ✅ FIXED: Emergency button now actually calls 911 */}
               <TouchableOpacity style={styles.emergencyButton} onPress={handleEmergency}>
                 <Text style={styles.emergencyButtonText}>🚨 Emergency</Text>
               </TouchableOpacity>

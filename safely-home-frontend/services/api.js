@@ -18,7 +18,32 @@ api.interceptors.request.use(
   },
   (error) => Promise.reject(error)
 );
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // TIMEOUT or NO RESPONSE (backend inactive)
+    if (error.code === "ECONNABORTED" || error.message === "Network Error") {
+      return Promise.reject({
+        customError: "Backend Inactive",
+        message: "The server is not responding right now. Please try again shortly.",
+      });
+    }
 
+    // SERVER responded with error (wrong credentials, etc.)
+    if (error.response) {
+      return Promise.reject({
+        customError: "Server Error",
+        message: error.response.data?.error || "Something went wrong.",
+      });
+    }
+
+    // OTHER ERRORS
+    return Promise.reject({
+      customError: "Unknown Error",
+      message: "An unexpected error occurred.",
+    });
+  }
+);
 export const login = async (email, password) => {
   const response = await api.post('/login', { email, password });
   if (response.data.token) {
