@@ -223,11 +223,11 @@ SOCKET_TIMEOUT=60000
 const isDevelopment = __DEV__;
 
 export const API_URL = isDevelopment 
-  ? 'http://192.168.18.16:10000/api'      // Local IP
+  ? 'http://YOUR_IP:10000/api'      // Local IP
   : 'https://safely-home-backend.onrender.com/api';  // Production
 
 export const SOCKET_URL = isDevelopment
-  ? 'http://192.168.18.16:10000'
+  ? 'http://YOUR_IP:10000'
   : 'https://safely-home-backend.onrender.com';
 
 export const GOOGLE_MAPS_API_KEY = 'YOUR_GOOGLE_MAPS_API_KEY';
