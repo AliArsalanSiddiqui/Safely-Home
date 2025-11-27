@@ -75,7 +75,6 @@ function CustomSplashScreen({ onFinish }) {
         <Text style={styles.splashTagline}>Your Safety, Our Priority</Text>
       </Animated.View>
       
-      {/* Loading indicator */}
       <View style={styles.loadingContainer}>
         <View style={styles.loadingDot} />
         <View style={[styles.loadingDot, styles.loadingDotDelay1]} />

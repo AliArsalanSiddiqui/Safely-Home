@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, API_URL } from '../config';
 import { completeRide, cancelRide } from '../services/api';
 import socketService from '../services/socket';
+import { makePhoneCall, makeEmergencyCall } from '../services/phoneUtils';
 
 export default function DriverTrackingScreen({ navigation, route }) {
   const { rideId, rider, pickup, destination } = route.params || {};
@@ -91,40 +92,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
   };
 
   const handleCallRider = () => {
-    const phoneNumber = riderInfo?.phone;
-    
-    console.log('📞 Calling rider:', { riderName: riderInfo?.name, phoneNumber });
-    
-    if (!phoneNumber) {
-      Alert.alert('Error', 'Rider phone number not available');
-      return;
-    }
-
-    Alert.alert(
-      'Call Rider',
-      `Do you want to call ${riderInfo?.name || 'Rider'}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Call',
-          onPress: () => {
-            const url = `tel:${phoneNumber}`;
-            Linking.canOpenURL(url)
-              .then((supported) => {
-                if (supported) {
-                  return Linking.openURL(url);
-                } else {
-                  Alert.alert('Error', 'Unable to make phone calls on this device');
-                }
-              })
-              .catch((err) => {
-                console.error('Error opening dialer:', err);
-                Alert.alert('Error', 'Failed to open phone dialer');
-              });
-          }
-        }
-      ]
-    );
+  makePhoneCall(riderInfo?.phone, riderInfo?.name || 'Rider');
   };
 
   const handleOpenChat = () => {
@@ -227,37 +195,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
 
   // ✅ FIXED: Proper emergency 911 call function
   const handleEmergency = () => {
-    Alert.alert(
-      '🚨 Emergency Services',
-      'This will call emergency services immediately.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Call 911',
-          style: 'destructive',
-          onPress: () => {
-            const emergencyNumber = '911';
-            const url = `tel:${emergencyNumber}`;
-            
-            console.log('📞 Attempting to call emergency:', emergencyNumber);
-            
-            Linking.canOpenURL(url)
-              .then((supported) => {
-                if (supported) {
-                  console.log('✅ Opening emergency dialer...');
-                  Linking.openURL(url);
-                } else {
-                  Alert.alert('Error', 'Unable to make emergency call on this device');
-                }
-              })
-              .catch((err) => {
-                console.error('Error calling emergency:', err);
-                Alert.alert('Error', 'Failed to call emergency services');
-              });
-          }
-        }
-      ]
-    );
+  makeEmergencyCall();
   };
 
   const getStatusText = () => {

@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, TextInput, StyleSheet, Alert, ScrollView,
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { COLORS, API_URL } from '../config';
+import { makeEmergencyCall } from '../services/phoneUtils';
 
 export default function ReportIssueScreen({ navigation, route }) {
   const params = route.params || {};
@@ -76,35 +77,8 @@ export default function ReportIssueScreen({ navigation, route }) {
   };
 
   // ✅ FIXED: Proper emergency call function
-  const handleEmergency = async () => {
-    Alert.alert(
-      '🚨 Emergency Services',
-      'This will call emergency services immediately.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Call 911',
-          style: 'destructive',
-          onPress: () => {
-            const emergencyNumber = '911';
-            const url = `tel:${emergencyNumber}`;
-            
-            Linking.canOpenURL(url)
-              .then((supported) => {
-                if (supported) {
-                  Linking.openURL(url);
-                } else {
-                  Alert.alert('Error', 'Unable to make emergency call on this device');
-                }
-              })
-              .catch((err) => {
-                console.error('Error calling emergency:', err);
-                Alert.alert('Error', 'Failed to call emergency services');
-              });
-          }
-        }
-      ]
-    );
+  const handleEmergency = () => {
+  makeEmergencyCall();
   };
 
   const handleSubmit = async () => {

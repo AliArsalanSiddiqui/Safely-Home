@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, API_URL } from '../config';
 import { cancelRide } from '../services/api';
 import socketService from '../services/socket';
+import { makePhoneCall, makeEmergencyCall } from '../services/phoneUtils';
 
 export default function RiderTrackingScreen({ navigation, route }) {
   const params = route.params || {};
@@ -142,40 +143,10 @@ export default function RiderTrackingScreen({ navigation, route }) {
   };
 
   const handleCallDriver = () => {
-    const phoneNumber = driver?.phone;
-    
-    console.log('📞 Calling driver:', { driverName: driver?.name, phoneNumber });
-    
-    if (!phoneNumber) {
-      Alert.alert('Error', 'Driver phone number not available');
-      return;
-    }
-
-    Alert.alert(
-      'Call Driver',
-      `Do you want to call ${driver?.name || 'Driver'}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Call',
-          onPress: () => {
-            const url = `tel:${phoneNumber}`;
-            Linking.canOpenURL(url)
-              .then((supported) => {
-                if (supported) {
-                  return Linking.openURL(url);
-                } else {
-                  Alert.alert('Error', 'Unable to make phone calls on this device');
-                }
-              })
-              .catch((err) => {
-                console.error('Error opening dialer:', err);
-                Alert.alert('Error', 'Failed to open phone dialer');
-              });
-          }
-        }
-      ]
-    );
+  makePhoneCall(driver?.phone, driver?.name || 'Driver');
+  };
+  const handleEmergency = () => {
+  makeEmergencyCall();
   };
 
   const handleOpenChat = () => {

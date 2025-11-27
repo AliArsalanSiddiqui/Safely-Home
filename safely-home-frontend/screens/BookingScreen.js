@@ -338,27 +338,36 @@ export default function BookingScreen({ navigation, route }) {
 
   // ✅ FIXED: Socket listeners - Listen for driverAccepted on ride request
   const setupSocketListeners = () => {
-    // ✅ FIXED: This listener now fires when driver accepts
-    socketService.on('driverAccepted', (data) => {
-      console.log('✅ Driver accepted (Rider):', data);
-      setSearchingDriver(false);
+  // ✅ FIXED: Remove any existing listeners first
+  socketService.off('driverAccepted');
+  socketService.off('rideCancelled');
 
-      if (!data.rideId) {
-        console.error('❌ No rideId in driverAccepted event');
-        return;
-      }
+  // ✅ FIXED: This listener now fires when driver accepts
+  socketService.on('driverAccepted', (data) => {
+    console.log('✅ Driver accepted (Rider):', data);
+    setSearchingDriver(false);
 
-      Alert.alert('🚗 Driver Found!', `${data.driver?.name || 'Driver'} is coming to pick you up!`, [
+    if (!data.rideId) {
+      console.error('❌ No rideId in driverAccepted event');
+      return;
+    }
+
+    // ✅ CRITICAL FIX: Don't check if rideId matches - accept ANY driver acceptance
+    // This fixes the "first ride gets discarded" bug
+    console.log('🔄 Navigating to RiderTracking with:', {
+      rideId: data.rideId,
+      driver: data.driver,
+      pickup,
+      destination
+    });
+
+    Alert.alert(
+      '🚗 Driver Found!', 
+      `${data.driver?.name || 'Driver'} is coming to pick you up!`, 
+      [
         {
           text: 'View Details',
           onPress: () => {
-            console.log('🔄 Navigating to RiderTracking with:', {
-              rideId: data.rideId,
-              driver: data.driver,
-              pickup,
-              destination
-            });
-            
             navigation.replace('RiderTracking', {
               rideId: data.rideId,
               driver: data.driver,
@@ -367,16 +376,18 @@ export default function BookingScreen({ navigation, route }) {
             });
           }
         }
-      ]);
-    });
+      ],
+      { cancelable: false } // ✅ Prevent dismissing alert
+    );
+  });
 
-    socketService.on('rideCancelled', () => {
-      setSearchingDriver(false);
-      Alert.alert('Ride Cancelled', 'The driver cancelled the ride', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
-    });
-  };
+  socketService.on('rideCancelled', () => {
+    setSearchingDriver(false);
+    Alert.alert('Ride Cancelled', 'The driver cancelled the ride', [
+      { text: 'OK', onPress: () => navigation.goBack() }
+    ]);
+  });
+};
 
   // ✅ FIXED: Booking - Pass gender preference to backend
   const handleBookRide = async () => {
