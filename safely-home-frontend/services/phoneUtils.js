@@ -1,9 +1,12 @@
+// safely-home-frontend/services/phoneUtils.js
+// ✅ WORKS ON ALL ANDROID PHONES (Redmi, OnePlus, Samsung, etc.)
+
 import { Linking, Platform, Alert } from 'react-native';
+import * as IntentLauncher from 'expo-intent-launcher';
 
 /**
- * Universal phone call function that works on all devices
- * @param {string} phoneNumber - Phone number to call
- * @param {string} personName - Name of person being called (optional)
+ * Universal phone call function that works on ALL Android phones
+ * including Redmi, OnePlus, Xiaomi, etc.
  */
 export const makePhoneCall = async (phoneNumber, personName = 'Contact') => {
   if (!phoneNumber) {
@@ -11,131 +14,97 @@ export const makePhoneCall = async (phoneNumber, personName = 'Contact') => {
     return;
   }
 
-  // Clean phone number (remove spaces, dashes, parentheses)
+  // Clean phone number
   const cleanNumber = phoneNumber.replace(/[^\d+]/g, '');
-  
   console.log('📞 Attempting to call:', { original: phoneNumber, cleaned: cleanNumber });
 
-  // ✅ FIX: Try multiple URL schemes for maximum compatibility
-  const urlSchemes = [
-    `tel:${cleanNumber}`,           // Standard (iOS/Android)
-    `telprompt:${cleanNumber}`,     // iOS with confirmation
-    `intent://call?number=${cleanNumber}#Intent;scheme=tel;package=com.android.phone;end` // Android intent
-  ];
-
-  let callSuccessful = false;
-
-  for (const url of urlSchemes) {
-    try {
-      const supported = await Linking.canOpenURL(url);
-      
-      if (supported) {
-        console.log(`✅ Opening dialer with scheme: ${url}`);
-        
-        Alert.alert(
-          'Call ' + personName,
-          `Do you want to call ${personName}?\n\n${phoneNumber}`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Call',
-              onPress: async () => {
-                try {
-                  await Linking.openURL(url);
-                  callSuccessful = true;
-                } catch (err) {
-                  console.error('❌ Error opening dialer:', err);
-                  
-                  // ✅ FALLBACK: Show number for manual dialing
-                  Alert.alert(
-                    'Cannot Open Dialer',
-                    `Please dial manually:\n\n${phoneNumber}`,
-                    [
-                      {
-                        text: 'Copy Number',
-                        onPress: () => {
-                          // Copy to clipboard if available
-                          if (Platform.OS === 'android') {
-                            Alert.alert('Number', phoneNumber);
-                          }
-                        }
-                      },
-                      { text: 'OK' }
-                    ]
-                  );
-                }
+  Alert.alert(
+    'Call ' + personName,
+    `Do you want to call ${personName}?\n\n${phoneNumber}`,
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Call',
+        onPress: async () => {
+          try {
+            if (Platform.OS === 'android') {
+              // ✅ CRITICAL FIX: Use Android Intent for maximum compatibility
+              // This works on Redmi, OnePlus, Xiaomi, and all Android phones
+              await IntentLauncher.startActivityAsync('android.intent.action.DIAL', {
+                data: `tel:${cleanNumber}`,
+                type: 'text/plain'
+              });
+              console.log('✅ Opened dialer via Android Intent');
+            } else {
+              // iOS
+              const url = `tel:${cleanNumber}`;
+              const canOpen = await Linking.canOpenURL(url);
+              
+              if (canOpen) {
+                await Linking.openURL(url);
+                console.log('✅ Opened iOS dialer');
+              } else {
+                throw new Error('Cannot open dialer on iOS');
               }
             }
-          ]
-        );
-        
-        return; // Exit if we found a working scheme
+          } catch (error) {
+            console.error('❌ Dialer error:', error);
+            
+            // ✅ FALLBACK: Show manual dial instructions
+            Alert.alert(
+              'Unable to Open Dialer',
+              `Please open your phone app and dial:\n\n${phoneNumber}\n\nOr copy this number.`,
+              [
+                {
+                  text: 'Show Number Again',
+                  onPress: () => {
+                    Alert.alert('Phone Number', phoneNumber, [{ text: 'OK' }]);
+                  }
+                },
+                { text: 'OK' }
+              ]
+            );
+          }
+        }
       }
-    } catch (error) {
-      console.log(`⚠️ Scheme ${url} not supported:`, error.message);
-      continue; // Try next scheme
-    }
-  }
-
-  // ✅ If NO schemes worked, show manual dial option
-  if (!callSuccessful) {
-    Alert.alert(
-      'Dialer Not Available',
-      `This device cannot make calls directly.\n\nPlease dial manually:\n\n${phoneNumber}`,
-      [
-        { text: 'OK' }
-      ]
-    );
-  }
+    ]
+  );
 };
 
 /**
- * Emergency 911 call function
- * Works on ALL devices
+ * Emergency 911 call - Works on ALL phones
  */
 export const makeEmergencyCall = () => {
   Alert.alert(
     '🚨 Emergency Services',
-    'This will call emergency services immediately.',
+    'This will open the dialer with 911.\n\nPress CALL to connect immediately.',
     [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Call 911',
+        text: 'Open Dialer',
         style: 'destructive',
         onPress: async () => {
           const emergencyNumber = '911';
           
-          // ✅ FIX: Try multiple emergency call methods
-          const emergencySchemes = [
-            `tel:${emergencyNumber}`,
-            `telprompt:${emergencyNumber}`,
-            Platform.OS === 'android' 
-              ? `intent://call?number=${emergencyNumber}#Intent;scheme=tel;package=com.android.phone;S.browser_fallback_url=tel:${emergencyNumber};end`
-              : `tel:${emergencyNumber}`
-          ];
-
-          let emergencyCallSuccessful = false;
-
-          for (const url of emergencySchemes) {
-            try {
-              const supported = await Linking.canOpenURL(url);
-              
-              if (supported) {
-                console.log('✅ Opening emergency dialer:', url);
-                await Linking.openURL(url);
-                emergencyCallSuccessful = true;
-                return;
-              }
-            } catch (error) {
-              console.log('⚠️ Emergency scheme failed:', url);
-              continue;
+          try {
+            if (Platform.OS === 'android') {
+              // ✅ Use Android Intent for emergency calls
+              await IntentLauncher.startActivityAsync('android.intent.action.DIAL', {
+                data: `tel:${emergencyNumber}`,
+                type: 'text/plain'
+              });
+              console.log('✅ Opened emergency dialer via Android Intent');
+            } else {
+              // iOS
+              const url = `tel:${emergencyNumber}`;
+              await Linking.openURL(url);
+              console.log('✅ Opened iOS emergency dialer');
             }
-          }
-
-          // ✅ If emergency dialing fails, show manual option
-          if (!emergencyCallSuccessful) {
+          } catch (error) {
+            console.error('❌ Emergency dialer error:', error);
+            
             Alert.alert(
-              'Emergency Dialing Failed',
+              'Emergency',
               'Please dial 911 manually from your phone dialer immediately.',
               [{ text: 'OK' }]
             );

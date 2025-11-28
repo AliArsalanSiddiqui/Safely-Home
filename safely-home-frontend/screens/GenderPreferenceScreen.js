@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+// safely-home-frontend/screens/GenderPreferenceScreen.js
+// ✅ UPDATED: Male riders CANNOT select female drivers
+
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../config';
@@ -7,6 +10,24 @@ import { setGenderPreference } from '../services/api';
 export default function GenderPreferenceScreen({ navigation }) {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [userGender, setUserGender] = useState(null); // ✅ Track user's gender
+
+  useEffect(() => {
+    loadUserGender();
+  }, []);
+
+  const loadUserGender = async () => {
+    const userData = await AsyncStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      setUserGender(user.gender);
+      
+      // ✅ Auto-select for male riders
+      if (user.gender === 'male') {
+        setSelected('male');
+      }
+    }
+  };
 
   const handleContinue = async () => {
     if (!selected) {
@@ -14,12 +35,20 @@ export default function GenderPreferenceScreen({ navigation }) {
       return;
     }
 
+    // ✅ VALIDATE: Male riders cannot select female
+    if (userGender === 'male' && selected === 'female') {
+      Alert.alert(
+        'Not Available',
+        'For safety reasons, male riders can only book male drivers.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     setLoading(true);
     try {
-      // Update on backend
       await setGenderPreference(selected);
       
-      // Update local AsyncStorage
       const userData = await AsyncStorage.getItem('user');
       if (userData) {
         const user = JSON.parse(userData);
@@ -27,14 +56,11 @@ export default function GenderPreferenceScreen({ navigation }) {
         await AsyncStorage.setItem('user', JSON.stringify(user));
       }
 
-      // Check if this is first time setup or update
       const isFirstTime = !userData || !JSON.parse(userData).genderPreference;
       
       if (isFirstTime) {
-        // First time setup - go to rider home
         navigation.replace('RiderHome');
       } else {
-        // Updating preference - go back
         Alert.alert('Success', 'Preference updated successfully', [
           { text: 'OK', onPress: () => navigation.goBack() }
         ]);
@@ -60,24 +86,32 @@ export default function GenderPreferenceScreen({ navigation }) {
 
       <View style={styles.card}>
         <Text style={styles.heading}>Choose Your Ride Preference</Text>
-        <Text style={styles.subheading}>Select your preferred driver gender for a comfortable ride</Text>
+        <Text style={styles.subheading}>
+          {userGender === 'male' 
+            ? 'Male riders can only select male drivers for safety'
+            : 'Select your preferred driver gender for a comfortable ride'}
+        </Text>
 
-        <TouchableOpacity
-          style={[styles.option, selected === 'female' && styles.optionSelected]}
-          onPress={() => setSelected('female')}
-        >
-          <View style={[styles.iconContainer, selected === 'female' && styles.iconContainerSelected]}>
-            <Text style={styles.icon}>👩</Text>
-          </View>
-          <View style={styles.optionTextContainer}>
-            <Text style={[styles.optionTitle, selected === 'female' && styles.optionTitleSelected]}>
-              Female Drivers Only
-            </Text>
-            <Text style={styles.optionSubtitle}>Ride with female drivers</Text>
-          </View>
-          {selected === 'female' && <Text style={styles.checkmark}>✓</Text>}
-        </TouchableOpacity>
+        {/* ✅ Female option - Only for female riders */}
+        {userGender === 'female' && (
+          <TouchableOpacity
+            style={[styles.option, selected === 'female' && styles.optionSelected]}
+            onPress={() => setSelected('female')}
+          >
+            <View style={[styles.iconContainer, selected === 'female' && styles.iconContainerSelected]}>
+              <Text style={styles.icon}>👩</Text>
+            </View>
+            <View style={styles.optionTextContainer}>
+              <Text style={[styles.optionTitle, selected === 'female' && styles.optionTitleSelected]}>
+                Female Drivers Only
+              </Text>
+              <Text style={styles.optionSubtitle}>Ride with female drivers</Text>
+            </View>
+            {selected === 'female' && <Text style={styles.checkmark}>✓</Text>}
+          </TouchableOpacity>
+        )}
 
+        {/* ✅ Male option - Available for all */}
         <TouchableOpacity
           style={[styles.option, selected === 'male' && styles.optionSelected]}
           onPress={() => setSelected('male')}
@@ -89,26 +123,41 @@ export default function GenderPreferenceScreen({ navigation }) {
             <Text style={[styles.optionTitle, selected === 'male' && styles.optionTitleSelected]}>
               Male Drivers Only
             </Text>
-            <Text style={styles.optionSubtitle}>Ride with male drivers</Text>
+            <Text style={styles.optionSubtitle}>
+              {userGender === 'male' ? 'Required for male riders' : 'Ride with male drivers'}
+            </Text>
           </View>
           {selected === 'male' && <Text style={styles.checkmark}>✓</Text>}
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.option, selected === 'any' && styles.optionSelected]}
-          onPress={() => setSelected('any')}
-        >
-          <View style={[styles.iconContainer, selected === 'any' && styles.iconContainerSelected]}>
-            <Text style={styles.icon}>👥</Text>
-          </View>
-          <View style={styles.optionTextContainer}>
-            <Text style={[styles.optionTitle, selected === 'any' && styles.optionTitleSelected]}>
-              No Preference
+        {/* ✅ No preference - Only for female riders */}
+        {userGender === 'female' && (
+          <TouchableOpacity
+            style={[styles.option, selected === 'any' && styles.optionSelected]}
+            onPress={() => setSelected('any')}
+          >
+            <View style={[styles.iconContainer, selected === 'any' && styles.iconContainerSelected]}>
+              <Text style={styles.icon}>👥</Text>
+            </View>
+            <View style={styles.optionTextContainer}>
+              <Text style={[styles.optionTitle, selected === 'any' && styles.optionTitleSelected]}>
+                No Preference
+              </Text>
+              <Text style={styles.optionSubtitle}>Ride with any available driver</Text>
+            </View>
+            {selected === 'any' && <Text style={styles.checkmark}>✓</Text>}
+          </TouchableOpacity>
+        )}
+
+        {/* ✅ Info box for male riders */}
+        {userGender === 'male' && (
+          <View style={styles.infoBox}>
+            <Text style={styles.infoIcon}>ℹ️</Text>
+            <Text style={styles.infoText}>
+              For safety and security, male riders can only book male drivers.
             </Text>
-            <Text style={styles.optionSubtitle}>Ride with any available driver</Text>
           </View>
-          {selected === 'any' && <Text style={styles.checkmark}>✓</Text>}
-        </TouchableOpacity>
+        )}
 
         <TouchableOpacity 
           style={[styles.continueButton, !selected && styles.continueButtonDisabled]} 
@@ -134,7 +183,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: 'bold', color: COLORS.accent, letterSpacing: 2, textAlign: 'center', marginBottom: 40 },
   card: { backgroundColor: COLORS.secondary, borderRadius: 20, padding: 25 },
   heading: { fontSize: 20, fontWeight: 'bold', color: COLORS.text, textAlign: 'center', marginBottom: 10 },
-  subheading: { fontSize: 14, color: COLORS.text, textAlign: 'center', marginBottom: 30, opacity: 0.8 },
+  subheading: { fontSize: 14, color: COLORS.text, textAlign: 'center', marginBottom: 30, opacity: 0.8, lineHeight: 20 },
   option: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: 15, padding: 20, marginBottom: 15, borderWidth: 2, borderColor: 'transparent' },
   optionSelected: { borderColor: COLORS.accent, backgroundColor: COLORS.accent + '20' },
   iconContainer: { width: 50, height: 50, borderRadius: 25, backgroundColor: COLORS.secondary, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
@@ -145,6 +194,22 @@ const styles = StyleSheet.create({
   optionTitleSelected: { color: COLORS.accent },
   optionSubtitle: { fontSize: 13, color: COLORS.text, opacity: 0.7 },
   checkmark: { fontSize: 24, color: COLORS.accent, fontWeight: 'bold' },
+  infoBox: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.accent + '20',
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: COLORS.accent
+  },
+  infoIcon: { fontSize: 20, marginRight: 10 },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.text,
+    lineHeight: 18
+  },
   continueButton: { backgroundColor: COLORS.accent, borderRadius: 10, paddingVertical: 15, alignItems: 'center', marginTop: 20 },
   continueButtonDisabled: { opacity: 0.5 },
   continueButtonText: { fontSize: 16, fontWeight: 'bold', color: COLORS.textDark },

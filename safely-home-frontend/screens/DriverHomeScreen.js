@@ -1,17 +1,33 @@
+// ============================================
+// DriverHomeScreen.js - WITH SIDEBAR
+// ============================================
+
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Switch, RefreshControl } from 'react-native';
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  StyleSheet, 
+  ScrollView, 
+  Alert, 
+  Switch, 
+  RefreshControl,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../config';
 import { updateDriverStatus, getAvailableRides, acceptRide, getDriverEarnings, getDriverStats, logout } from '../services/api';
 import socketService from '../services/socket';
+import Sidebar from '../components/Sidebar'; // ✅ Import sidebar
 
 export default function DriverHomeScreen({ navigation }) {
   const [isOnline, setIsOnline] = useState(false);
   const [availableRides, setAvailableRides] = useState([]);
   const [earnings, setEarnings] = useState({ totalEarnings: '0.00', todayEarnings: '0.00', todayRides: 0 });
-  const [driverStats, setDriverStats] = useState({ totalRides: 0, averageRating: 0, reviews: [] }); // ✅ NEW
+  const [driverStats, setDriverStats] = useState({ totalRides: 0, averageRating: 0, reviews: [] });
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
+  const [sidebarVisible, setSidebarVisible] = useState(false); // ✅ Sidebar state
 
   useEffect(() => {
     loadData();
@@ -160,16 +176,32 @@ export default function DriverHomeScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
+        {/* ✅ Menu button to open sidebar */}
+        <TouchableOpacity onPress={() => setSidebarVisible(true)}>
+          <Text style={styles.menuButton}>☰</Text>
+        </TouchableOpacity>
+        
         <Text style={styles.headerTitle}>Driver Dashboard</Text>
+        
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
       </View>
 
+      {/* ✅ Sidebar component */}
+      <Sidebar 
+        visible={sidebarVisible}
+        onClose={() => setSidebarVisible(false)}
+        navigation={navigation}
+        userType="driver"
+      />
+
+      {/* Rest of the screen content */}
       <ScrollView
         style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={loadData} tintColor={COLORS.accent} />
         }
@@ -298,13 +330,27 @@ export default function DriverHomeScreen({ navigation }) {
           ))}
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.primary },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60 },
+  container: { 
+    flex: 1, 
+    backgroundColor: COLORS.primary 
+  },
+  header: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    padding: 20, 
+    paddingTop: 10 // ✅ Adjusted for SafeAreaView
+  },
+  menuButton: { // ✅ NEW
+    fontSize: 30,
+    color: COLORS.accent,
+    fontWeight: 'bold'
+  },
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: COLORS.text },
   logoutButton: { backgroundColor: COLORS.light, paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20 },
   logoutText: { fontSize: 14, color: COLORS.textDark, fontWeight: '600' },
@@ -352,4 +398,7 @@ const styles = StyleSheet.create({
   locationText: { flex: 1, fontSize: 14, color: COLORS.text },
   acceptButton: { backgroundColor: COLORS.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   acceptButtonText: { fontSize: 16, fontWeight: 'bold', color: COLORS.textDark },
+  scrollContent: {
+    paddingBottom: 100 // ✅ Extra padding for Android nav buttons
+  }
 });

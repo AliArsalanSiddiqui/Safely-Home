@@ -21,6 +21,7 @@ import ChatScreen from './screens/ChatScreen';
 import ReportIssueScreen from './screens/ReportIssueScreen';
 import RatingScreen from './screens/RatingScreen';
 import DriverHomeScreen from './screens/DriverHomeScreen';
+import RideHistoryScreen from './screens/RideHistoryScreen';
 
 const Stack = createStackNavigator();
 
@@ -137,6 +138,7 @@ export default function App() {
           <Stack.Screen name="RiderRegistration" component={RiderRegistrationScreen} />
           <Stack.Screen name="DriverRegistration" component={DriverRegistrationScreen} />
           <Stack.Screen name="GenderPreference" component={GenderPreferenceScreen} />
+          <Stack.Screen name="RideHistory" component={RideHistoryScreen} />
           
           {/* Rider Screens */}
           <Stack.Screen name="RiderHome" component={RiderHomeScreen} />

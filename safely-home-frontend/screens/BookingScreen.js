@@ -10,8 +10,9 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  FlatList
+  FlatList,
 } from 'react-native';
+import { SafeAreaView } from "react-native-safe-area-context"; // ✅ CORRECT
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -461,7 +462,7 @@ export default function BookingScreen({ navigation, route }) {
   };
 
   return (
-    <View style={styles.container}>
+  <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.backButton}>←</Text>
@@ -650,20 +651,20 @@ export default function BookingScreen({ navigation, route }) {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.primary },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 60, position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, backgroundColor: COLORS.primary },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 10, position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, backgroundColor: COLORS.primary },
   backButton: { fontSize: 30, color: COLORS.accent, fontWeight: 'bold' },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.text },
   mapContainer: { flex: 1, marginTop: 100 },
   map: { flex: 1 },
   mapInstruction: { position: 'absolute', top: 10, left: 20, right: 20, backgroundColor: COLORS.accent, padding: 15, borderRadius: 10 },
   mapInstructionText: { fontSize: 14, color: COLORS.textDark, fontWeight: 'bold', textAlign: 'center' },
-  bottomSheet: { backgroundColor: COLORS.secondary, borderTopLeftRadius: 30, borderTopRightRadius: 30, maxHeight: '60%' },
+  bottomSheet: { flex: 0, backgroundColor: COLORS.secondary, borderTopLeftRadius: 30, borderTopRightRadius: 30},
   scrollContent: { padding: 25 },
   locationInputContainer: { backgroundColor: COLORS.primary, borderRadius: 15, padding: 5, marginBottom: 20 },
   inputWrapper: { flexDirection: 'row', alignItems: 'center', padding: 15 },
