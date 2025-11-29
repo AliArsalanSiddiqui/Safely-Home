@@ -949,14 +949,14 @@ app.get('/api/rides/history', authenticateToken, async (req, res) => {
       userType: userType
     });
 
+    // ✅ Convert to ObjectId (mongoose is already imported at top)
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    // ✅ Build query based on user type
     let query = {
       status: { $in: ['completed', 'cancelled'] },
       active: false
     };
-
-    // ✅ CRITICAL FIX: Convert userId to ObjectId
-    const mongoose = require('mongoose');
-    const userObjectId = new mongoose.Types.ObjectId(userId);
 
     if (userType === 'rider') {
       query.riderId = userObjectId;
@@ -964,8 +964,9 @@ app.get('/api/rides/history', authenticateToken, async (req, res) => {
       query.driverId = userObjectId;
     }
 
-    console.log('🔍 Query:', JSON.stringify(query));
+    console.log('🔍 Query:', JSON.stringify(query, null, 2));
 
+    // ✅ Fetch rides
     const rides = await Ride.find(query)
       .populate('riderId', 'name phone gender')
       .populate('driverId', 'name phone rating vehicleInfo gender')
@@ -974,14 +975,15 @@ app.get('/api/rides/history', authenticateToken, async (req, res) => {
 
     console.log(`✅ Found ${rides.length} historical rides`);
 
-    // ✅ DEBUG: Log first ride if exists
+    // ✅ Log first ride if exists (for debugging)
     if (rides.length > 0) {
       console.log('📋 Sample ride:', {
         id: rides[0]._id,
         status: rides[0].status,
         active: rides[0].active,
         riderId: rides[0].riderId?._id,
-        driverId: rides[0].driverId?._id
+        driverId: rides[0].driverId?._id,
+        createdAt: rides[0].createdAt
       });
     }
 
@@ -1015,6 +1017,52 @@ app.get('/api/admin/active-rides', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error fetching active rides:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/debug/me', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const userType = req.user.userType;
+    
+    const user = await User.findById(userId);
+    
+    console.log('👤 Current user:', {
+      id: userId,
+      type: userType,
+      name: user?.name,
+      email: user?.email
+    });
+    
+    // Find rides as rider
+    const asRider = await Ride.countDocuments({ 
+      riderId: new mongoose.Types.ObjectId(userId),
+      status: { $in: ['completed', 'cancelled'] },
+      active: false
+    });
+    
+    // Find rides as driver
+    const asDriver = await Ride.countDocuments({ 
+      driverId: new mongoose.Types.ObjectId(userId),
+      status: { $in: ['completed', 'cancelled'] },
+      active: false
+    });
+    
+    res.json({
+      success: true,
+      user: {
+        id: userId,
+        type: userType,
+        name: user?.name,
+        email: user?.email
+      },
+      rideCount: {
+        asRider: asRider,
+        asDriver: asDriver
+      }
+    });
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
