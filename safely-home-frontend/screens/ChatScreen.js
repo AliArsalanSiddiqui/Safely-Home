@@ -158,7 +158,7 @@ export default function ChatScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.primary },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 60, backgroundColor: COLORS.secondary },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 20, backgroundColor: COLORS.secondary },
   backButton: { fontSize: 30, color: COLORS.accent },
   headerInfo: { flex: 1, alignItems: 'center' },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.text },
