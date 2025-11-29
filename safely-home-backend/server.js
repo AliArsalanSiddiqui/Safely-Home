@@ -243,7 +243,7 @@ function validatePassword(password) {
 const authenticateToken = (req, res, next) => {
   const authHeader = req.header('Authorization');
   const token = authHeader && authHeader.replace('Bearer ', '');
-  
+  console.log(token);
   if (!token) {
     return res.status(401).json({ error: 'Access denied. No token provided.' });
   }
@@ -493,7 +493,174 @@ app.post('/api/location', authenticateToken, async (req, res) => {
 // ============================================
 // RIDE ROUTES
 // ============================================
+// ============================================
+// GET ACTIVE RIDE ENDPOINT (NEW)
+// Returns the rider's current active ride if any
+// ============================================
 
+app.get('/api/rides/active', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const userType = req.user.userType;
+
+    console.log('🔍 Checking active ride for:', userId);
+
+    let query = {
+      status: { $in: ['requested', 'accepted', 'started'] },
+      active: true
+    };
+
+    if (userType === 'rider') {
+      query.riderId = userId;
+    } else {
+      query.driverId = userId;
+    }
+
+    const activeRide = await Ride.findOne(query)
+      .populate('riderId', 'name phone gender')
+      .populate('driverId', 'name phone rating vehicleInfo gender')
+      .sort({ createdAt: -1 });
+
+    if (activeRide) {
+      console.log('✅ Active ride found:', activeRide._id);
+      res.json({ success: true, activeRide });
+    } else {
+      console.log('ℹ️ No active ride');
+      res.json({ success: true, activeRide: null });
+    }
+  } catch (error) {
+    console.error('❌ Get active ride error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+// ============================================
+// RIDE HISTORY ENDPOINT (NEW)
+// ============================================
+
+app.get('/api/rides/history', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const userType = req.user.userType;
+
+    console.log('📜 Fetching ride history for:', {
+      userId: userId,
+      userType: userType
+    });
+
+    // ✅ Convert to ObjectId (mongoose is already imported at top)
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    // ✅ Build query based on user type
+    let query = {
+      status: { $in: ['completed', 'cancelled'] },
+      active: false
+    };
+
+    if (userType === 'rider') {
+      query.riderId = userObjectId;
+    } else {
+      query.driverId = userObjectId;
+    }
+
+    console.log('🔍 Query:', JSON.stringify(query, null, 2));
+
+    // ✅ Fetch rides
+    const rides = await Ride.find(query)
+      .populate('riderId', 'name phone gender')
+      .populate('driverId', 'name phone rating vehicleInfo gender')
+      .sort({ createdAt: -1 })
+      .limit(100);
+
+    console.log(`✅ Found ${rides.length} historical rides`);
+
+    // ✅ Log first ride if exists (for debugging)
+    if (rides.length > 0) {
+      console.log('📋 Sample ride:', {
+        id: rides[0]._id,
+        status: rides[0].status,
+        active: rides[0].active,
+        riderId: rides[0].riderId?._id,
+        driverId: rides[0].driverId?._id,
+        createdAt: rides[0].createdAt
+      });
+    }
+
+    res.json({ success: true, rides });
+  } catch (error) {
+    console.error('❌ Ride history error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+app.get('/api/admin/active-rides', authenticateToken, async (req, res) => {
+  try {
+    const activeRides = await Ride.find({ active: true })
+      .populate('riderId', 'name email')
+      .populate('driverId', 'name email')
+      .sort({ createdAt: -1 });
+
+    console.log(`📊 Total active rides: ${activeRides.length}`);
+
+    res.json({
+      success: true,
+      count: activeRides.length,
+      rides: activeRides.map(ride => ({
+        id: ride._id,
+        status: ride.status,
+        rider: ride.riderId?.name || 'Unknown',
+        driver: ride.driverId?.name || 'Not assigned',
+        createdAt: ride.createdAt
+      }))
+    });
+  } catch (error) {
+    console.error('❌ Error fetching active rides:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+app.get('/api/debug/me', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const userType = req.user.userType;
+    
+    const user = await User.findById(userId);
+    
+    console.log('👤 Current user:', {
+      id: userId,
+      type: userType,
+      name: user?.name,
+      email: user?.email
+    });
+    
+    // Find rides as rider
+    const asRider = await Ride.countDocuments({ 
+      riderId: new mongoose.Types.ObjectId(userId),
+      status: { $in: ['completed', 'cancelled'] },
+      active: false
+    });
+    
+    // Find rides as driver
+    const asDriver = await Ride.countDocuments({ 
+      driverId: new mongoose.Types.ObjectId(userId),
+      status: { $in: ['completed', 'cancelled'] },
+      active: false
+    });
+    
+    res.json({
+      success: true,
+      user: {
+        id: userId,
+        type: userType,
+        name: user?.name,
+        email: user?.email
+      },
+      rideCount: {
+        asRider: asRider,
+        asDriver: asDriver
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 app.post('/api/ride/request', authenticateToken, async (req, res) => {
   try {
     const { pickup, destination, fare } = req.body;
@@ -599,8 +766,6 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
-
 // ============================================
 // UPDATED GET AVAILABLE RIDES - ONLY SHOW ACTIVE REQUESTED
 // ============================================
@@ -643,7 +808,6 @@ app.get('/api/rides/available', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 // ============================================
 // UPDATED ACCEPT RIDE - REMOVE FROM AVAILABLE
 // ============================================
@@ -714,7 +878,6 @@ app.post('/api/ride/accept', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 // ============================================
 // UPDATED COMPLETE RIDE - MOVE TO HISTORY
 // ============================================
@@ -878,7 +1041,6 @@ app.post('/api/ride/rate', authenticateToken, async (req, res) => {
     });
   }
 });
-
 // Get Ride Details
 app.get('/api/rides/:rideId', authenticateToken, async (req, res) => {
   try {
@@ -895,177 +1057,8 @@ app.get('/api/rides/:rideId', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-// ============================================
-// GET ACTIVE RIDE ENDPOINT (NEW)
-// Returns the rider's current active ride if any
-// ============================================
-
-app.get('/api/rides/active', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const userType = req.user.userType;
-
-    console.log('🔍 Checking active ride for:', userId);
-
-    let query = {
-      status: { $in: ['requested', 'accepted', 'started'] },
-      active: true
-    };
-
-    if (userType === 'rider') {
-      query.riderId = userId;
-    } else {
-      query.driverId = userId;
-    }
-
-    const activeRide = await Ride.findOne(query)
-      .populate('riderId', 'name phone gender')
-      .populate('driverId', 'name phone rating vehicleInfo gender')
-      .sort({ createdAt: -1 });
-
-    if (activeRide) {
-      console.log('✅ Active ride found:', activeRide._id);
-      res.json({ success: true, activeRide });
-    } else {
-      console.log('ℹ️ No active ride');
-      res.json({ success: true, activeRide: null });
-    }
-  } catch (error) {
-    console.error('❌ Get active ride error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-// ============================================
-// RIDE HISTORY ENDPOINT (NEW)
-// ============================================
-
-app.get('/api/rides/history', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const userType = req.user.userType;
-
-    console.log('📜 Fetching ride history for:', {
-      userId: userId,
-      userType: userType
-    });
-
-    // ✅ Convert to ObjectId (mongoose is already imported at top)
-    const userObjectId = new mongoose.Types.ObjectId(userId);
-
-    // ✅ Build query based on user type
-    let query = {
-      status: { $in: ['completed', 'cancelled'] },
-      active: false
-    };
-
-    if (userType === 'rider') {
-      query.riderId = userObjectId;
-    } else {
-      query.driverId = userObjectId;
-    }
-
-    console.log('🔍 Query:', JSON.stringify(query, null, 2));
-
-    // ✅ Fetch rides
-    const rides = await Ride.find(query)
-      .populate('riderId', 'name phone gender')
-      .populate('driverId', 'name phone rating vehicleInfo gender')
-      .sort({ createdAt: -1 })
-      .limit(100);
-
-    console.log(`✅ Found ${rides.length} historical rides`);
-
-    // ✅ Log first ride if exists (for debugging)
-    if (rides.length > 0) {
-      console.log('📋 Sample ride:', {
-        id: rides[0]._id,
-        status: rides[0].status,
-        active: rides[0].active,
-        riderId: rides[0].riderId?._id,
-        driverId: rides[0].driverId?._id,
-        createdAt: rides[0].createdAt
-      });
-    }
-
-    res.json({ success: true, rides });
-  } catch (error) {
-    console.error('❌ Ride history error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 
 
-app.get('/api/admin/active-rides', authenticateToken, async (req, res) => {
-  try {
-    const activeRides = await Ride.find({ active: true })
-      .populate('riderId', 'name email')
-      .populate('driverId', 'name email')
-      .sort({ createdAt: -1 });
-
-    console.log(`📊 Total active rides: ${activeRides.length}`);
-
-    res.json({
-      success: true,
-      count: activeRides.length,
-      rides: activeRides.map(ride => ({
-        id: ride._id,
-        status: ride.status,
-        rider: ride.riderId?.name || 'Unknown',
-        driver: ride.driverId?.name || 'Not assigned',
-        createdAt: ride.createdAt
-      }))
-    });
-  } catch (error) {
-    console.error('❌ Error fetching active rides:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.get('/api/debug/me', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const userType = req.user.userType;
-    
-    const user = await User.findById(userId);
-    
-    console.log('👤 Current user:', {
-      id: userId,
-      type: userType,
-      name: user?.name,
-      email: user?.email
-    });
-    
-    // Find rides as rider
-    const asRider = await Ride.countDocuments({ 
-      riderId: new mongoose.Types.ObjectId(userId),
-      status: { $in: ['completed', 'cancelled'] },
-      active: false
-    });
-    
-    // Find rides as driver
-    const asDriver = await Ride.countDocuments({ 
-      driverId: new mongoose.Types.ObjectId(userId),
-      status: { $in: ['completed', 'cancelled'] },
-      active: false
-    });
-    
-    res.json({
-      success: true,
-      user: {
-        id: userId,
-        type: userType,
-        name: user?.name,
-        email: user?.email
-      },
-      rideCount: {
-        asRider: asRider,
-        asDriver: asDriver
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 // ============================================
 // DRIVER ROUTES
 // ============================================
