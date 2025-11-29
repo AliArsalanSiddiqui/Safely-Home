@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, Keyboard
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../config';
 import socketService from '../services/socket';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ChatScreen({ navigation, route }) {
   const { rideId, otherUser, userType } = route.params;
@@ -100,8 +101,11 @@ export default function ChatScreen({ navigation, route }) {
   };
 
   return (
+    <SafeAreaView style={styles.container}
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
     <KeyboardAvoidingView 
-      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
@@ -151,6 +155,7 @@ export default function ChatScreen({ navigation, route }) {
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

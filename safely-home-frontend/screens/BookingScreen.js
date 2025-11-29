@@ -1,5 +1,5 @@
 // safely-home-frontend/screens/BookingScreen.js
-// ✅ COMPLETELY FIXED: Keyboard, Autocomplete, Map Size, Header, Everything!
+// ✅ FIXED: Keyboard handling, header position, autocomplete, scroll
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -14,9 +14,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
-  SafeAreaView,
-  Dimensions
+  Dimensions,
+  ScrollView
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -39,7 +40,7 @@ export default function BookingScreen({ navigation, route }) {
   const [userGender, setUserGender] = useState(null);
 
   // Active field tracking
-  const [activeField, setActiveField] = useState(null); // 'pickup' or 'destination'
+  const [activeField, setActiveField] = useState(null);
   const [useMapSelection, setUseMapSelection] = useState(false);
 
   // Fare calculation
@@ -51,6 +52,7 @@ export default function BookingScreen({ navigation, route }) {
   const [pickupSuggestions, setPickupSuggestions] = useState([]);
   const [destinationSuggestions, setDestinationSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 
   // Keyboard state
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -58,14 +60,12 @@ export default function BookingScreen({ navigation, route }) {
   const pickupDebounceRef = useRef(null);
   const destinationDebounceRef = useRef(null);
   const mapRef = useRef(null);
-  const pickupInputRef = useRef(null);
-  const destinationInputRef = useRef(null);
+  const scrollViewRef = useRef(null);
 
   useEffect(() => {
     getCurrentLocation();
     setupSocketListeners();
 
-    // Keyboard listeners
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
       setKeyboardVisible(true);
     });
@@ -197,26 +197,44 @@ export default function BookingScreen({ navigation, route }) {
 
   const fetchPlacesSuggestions = async (query, field) => {
     try {
-      const locationBias = currentLocation
-        ? `${currentLocation.latitude},${currentLocation.longitude}`
-        : '';
+      setSuggestionsLoading(true);
 
-      const url =
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?` +
-        `input=${encodeURIComponent(query)}` +
-        `&location=${locationBias}` +
-        `&radius=50000` +
-        `&types=geocode` +
-        `&components=country:pk` +
-        `&key=${GOOGLE_MAPS_API_KEY}`;
+      // ✅ FIXED: Proper API request
+      const url = new URL('https://maps.googleapis.com/maps/api/place/autocomplete/json');
+      
+      url.searchParams.append('input', query);
+      url.searchParams.append('key', GOOGLE_MAPS_API_KEY);
+      
+      // Add bias to current location if available
+      if (currentLocation) {
+        url.searchParams.append('location', `${currentLocation.latitude},${currentLocation.longitude}`);
+        url.searchParams.append('radius', '50000');
+      }
+      
+      url.searchParams.append('components', 'country:pk');
+      url.searchParams.append('types', 'geocode');
 
-      const response = await fetch(url);
+      console.log('🔍 Searching places:', query);
+
+      const response = await fetch(url.toString());
+      
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
       const data = await response.json();
 
-      if (data.predictions && data.predictions.length > 0) {
+      console.log('📍 Autocomplete response:', {
+        status: data.status,
+        predictions: data.predictions?.length || 0
+      });
+
+      if (data.status === 'OK' && data.predictions && data.predictions.length > 0) {
         const suggestions = data.predictions.map(pred => ({
           description: pred.description,
-          placeId: pred.place_id
+          placeId: pred.place_id,
+          mainText: pred.main_text,
+          secondaryText: pred.secondary_text
         }));
 
         if (field === 'pickup') {
@@ -225,9 +243,27 @@ export default function BookingScreen({ navigation, route }) {
           setDestinationSuggestions(suggestions);
         }
         setShowSuggestions(true);
+      } else if (data.status === 'ZERO_RESULTS') {
+        console.log('⚠️ No results found');
+        if (field === 'pickup') {
+          setPickupSuggestions([]);
+        } else {
+          setDestinationSuggestions([]);
+        }
+      } else if (data.status === 'INVALID_REQUEST') {
+        console.error('❌ Invalid request:', data.error_message);
+        Alert.alert('API Error', 'Invalid search request. Please try again.');
+      } else if (data.status === 'REQUEST_DENIED') {
+        console.error('❌ API Key Issue:', data.error_message);
+        Alert.alert('API Error', 'Google Maps API key issue. Please check configuration.');
+      } else {
+        console.error('❌ API Error:', data.status, data.error_message);
       }
     } catch (error) {
-      console.error('Autocomplete error:', error);
+      console.error('❌ Autocomplete error:', error);
+      Alert.alert('Search Error', 'Failed to search locations. Please try again.');
+    } finally {
+      setSuggestionsLoading(false);
     }
   };
 
@@ -267,6 +303,7 @@ export default function BookingScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Place details error:', error);
+      Alert.alert('Error', 'Failed to get location details');
     }
   };
 
@@ -418,7 +455,7 @@ export default function BookingScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* Header - Fixed at top with proper padding */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.backButton}>←</Text>
@@ -427,48 +464,54 @@ export default function BookingScreen({ navigation, route }) {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Map Section - BIGGER */}
-      <View style={styles.mapContainer}>
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          provider={PROVIDER_GOOGLE}
-          initialRegion={{
-            latitude: currentLocation?.latitude || 37.78825,
-            longitude: currentLocation?.longitude || -122.4324,
-            latitudeDelta: 0.02,
-            longitudeDelta: 0.02,
-          }}
-          onPress={handleMapPress}
-          showsUserLocation={true}
-          showsMyLocationButton={true}
-        >
-          {currentLocation && (
-            <Marker coordinate={currentLocation} title="Pickup" pinColor={COLORS.accent} />
-          )}
-          {destinationLocation && (
-            <Marker coordinate={destinationLocation} title="Destination" pinColor={COLORS.light} />
-          )}
-        </MapView>
-
-        {/* Map instruction - SMALLER & TRANSPARENT */}
-        {useMapSelection && activeField && (
-          <View style={styles.mapInstruction}>
-            <Text style={styles.mapInstructionText}>
-              📍 Tap map to select {activeField}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* Bottom Sheet */}
+      {/* Main scroll view - Contains map + inputs + suggestions */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.bottomSheet}
+        style={styles.keyboardAvoid}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <View style={styles.bottomSheetContent}>
-          {/* Input Section */}
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          scrollEnabled={true}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Map Section */}
+          <View style={styles.mapContainer}>
+            <MapView
+              ref={mapRef}
+              style={styles.map}
+              provider={PROVIDER_GOOGLE}
+              initialRegion={{
+                latitude: currentLocation?.latitude || 37.78825,
+                longitude: currentLocation?.longitude || -122.4324,
+                latitudeDelta: 0.02,
+                longitudeDelta: 0.02,
+              }}
+              onPress={handleMapPress}
+              showsUserLocation={true}
+              showsMyLocationButton={true}
+            >
+              {currentLocation && (
+                <Marker coordinate={currentLocation} title="Pickup" pinColor={COLORS.accent} />
+              )}
+              {destinationLocation && (
+                <Marker coordinate={destinationLocation} title="Destination" pinColor={COLORS.light} />
+              )}
+            </MapView>
+
+            {useMapSelection && activeField && (
+              <View style={styles.mapInstruction}>
+                <Text style={styles.mapInstructionText}>
+                  📍 Tap map to select {activeField}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Location Input Section */}
           <View style={styles.locationInputContainer}>
             {/* Pickup Input */}
             <View style={styles.inputWrapper}>
@@ -476,7 +519,6 @@ export default function BookingScreen({ navigation, route }) {
               <View style={styles.inputContent}>
                 <Text style={styles.inputLabel}>Pickup Location</Text>
                 <TextInput
-                  ref={pickupInputRef}
                   style={styles.input}
                   placeholder="Type address"
                   placeholderTextColor="#999"
@@ -504,7 +546,6 @@ export default function BookingScreen({ navigation, route }) {
               <View style={styles.inputContent}>
                 <Text style={styles.inputLabel}>Destination</Text>
                 <TextInput
-                  ref={destinationInputRef}
                   style={styles.input}
                   placeholder="Type address"
                   placeholderTextColor="#999"
@@ -525,259 +566,291 @@ export default function BookingScreen({ navigation, route }) {
             </View>
           </View>
 
-          {/* Suggestions List - ABOVE KEYBOARD */}
-          {showSuggestions && currentSuggestions.length > 0 && keyboardVisible && (
+          {/* Suggestions - Scrollable */}
+          {showSuggestions && currentSuggestions.length > 0 && (
             <View style={styles.suggestionsContainer}>
-              <FlatList
-                data={currentSuggestions}
-                keyExtractor={(item) => item.placeId}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.suggestionItem}
-                    onPress={() => selectSuggestion(item, activeField)}
-                  >
-                    <Text style={styles.suggestionIcon}>📍</Text>
-                    <Text style={styles.suggestionText} numberOfLines={2}>{item.description}</Text>
-                  </TouchableOpacity>
-                )}
-                keyboardShouldPersistTaps="handled"
-                style={styles.suggestionsList}
-              />
+              {suggestionsLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator color={COLORS.accent} />
+                  <Text style={styles.loadingText}>Searching...</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={currentSuggestions}
+                  keyExtractor={(item) => item.placeId}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.suggestionItem}
+                      onPress={() => selectSuggestion(item, activeField)}
+                    >
+                      <Text style={styles.suggestionIcon}>📍</Text>
+                      <View style={styles.suggestionTextContainer}>
+                        <Text style={styles.suggestionMain}>{item.mainText}</Text>
+                        {item.secondaryText && (
+                          <Text style={styles.suggestionSub}>{item.secondaryText}</Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                  scrollEnabled={false}
+                  keyboardShouldPersistTaps="handled"
+                />
+              )}
             </View>
           )}
 
-          {/* Fare Info - Only when not typing */}
-          {!keyboardVisible && (
-            <>
-              <View style={styles.estimateCard}>
-                <View style={styles.estimateRow}>
-                  <Text style={styles.estimateIcon}>⏱️</Text>
-                  <Text style={styles.estimateLabel}>Est. Time</Text>
-                  <Text style={styles.estimateValue}>{calculatedETA ? `${calculatedETA} mins` : '--'}</Text>
-                </View>
-                <View style={styles.estimateRow}>
-                  <Text style={styles.estimateIcon}>📍</Text>
-                  <Text style={styles.estimateLabel}>Distance</Text>
-                  <Text style={styles.estimateValue}>{calculatedDistance ? `${calculatedDistance.toFixed(2)} km` : '--'}</Text>
-                </View>
-                <View style={styles.estimateRow}>
-                  <Text style={styles.estimateIcon}>💰</Text>
-                  <Text style={styles.estimateLabel}>Est. Fare</Text>
-                  <Text style={styles.estimateValue}>{calculatedFare ? `${calculatedFare.toFixed(2)} pkr` : '--'}</Text>
-                </View>
+          {/* Fare Info Card */}
+          {!useMapSelection && (
+            <View style={styles.estimateCard}>
+              <View style={styles.estimateRow}>
+                <Text style={styles.estimateIcon}>⏱️</Text>
+                <Text style={styles.estimateLabel}>Est. Time</Text>
+                <Text style={styles.estimateValue}>{calculatedETA ? `${calculatedETA} mins` : '--'}</Text>
               </View>
-
-              {/* Confirm Button */}
-              {searchingDriver ? (
-                <View style={styles.searchingContainer}>
-                  <ActivityIndicator size="large" color={COLORS.accent} />
-                  <Text style={styles.searchingText}>Finding driver...</Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.confirmButton, (!pickup || !destination || loading) && styles.confirmButtonDisabled]}
-                  onPress={handleBookRide}
-                  disabled={loading || !pickup || !destination}
-                >
-                  {loading ? (
-                    <ActivityIndicator color={COLORS.textDark} />
-                  ) : (
-                    <Text style={styles.confirmButtonText}>Confirm Booking</Text>
-                  )}
-                </TouchableOpacity>
-              )}
-            </>
+              <View style={styles.estimateRow}>
+                <Text style={styles.estimateIcon}>📍</Text>
+                <Text style={styles.estimateLabel}>Distance</Text>
+                <Text style={styles.estimateValue}>{calculatedDistance ? `${calculatedDistance.toFixed(2)} km` : '--'}</Text>
+              </View>
+              <View style={styles.estimateRow}>
+                <Text style={styles.estimateIcon}>💰</Text>
+                <Text style={styles.estimateLabel}>Est. Fare</Text>
+                <Text style={styles.estimateValue}>{calculatedFare ? `${calculatedFare.toFixed(2)} pkr` : '--'}</Text>
+              </View>
+            </View>
           )}
-        </View>
+
+          {/* Confirm Button */}
+          {searchingDriver ? (
+            <View style={styles.searchingContainer}>
+              <ActivityIndicator size="large" color={COLORS.accent} />
+              <Text style={styles.searchingText}>Finding driver...</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.confirmButton, (!pickup || !destination || loading) && styles.confirmButtonDisabled]}
+              onPress={handleBookRide}
+              disabled={loading || !pickup || !destination}
+            >
+              {loading ? (
+                <ActivityIndicator color={COLORS.textDark} />
+              ) : (
+                <Text style={styles.confirmButtonText}>Confirm Booking</Text>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {/* Extra padding for nav buttons */}
+          <View style={{ height: 50 }} />
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: COLORS.primary 
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.primary
   },
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    padding: 20, 
-    paddingTop: 10, // ✅ Safe for notch
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    paddingTop: 10,
     backgroundColor: COLORS.primary,
-    zIndex: 10 
+    zIndex: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.secondary
   },
-  backButton: { 
-    fontSize: 30, 
-    color: COLORS.accent, 
-    fontWeight: 'bold' 
+  backButton: {
+    fontSize: 30,
+    color: COLORS.accent,
+    fontWeight: 'bold'
   },
-  headerTitle: { 
-    fontSize: 20, 
-    fontWeight: 'bold', 
-    color: COLORS.text 
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.text
   },
-  
-  // ✅ FIXED: Bigger map (60% of screen)
-  mapContainer: { 
-    height: SCREEN_HEIGHT * 0.5, // 50% of screen
-    position: 'relative' 
+  keyboardAvoid: {
+    flex: 1
   },
-  map: { 
-    flex: 1 
+  scrollView: {
+    flex: 1
   },
-  mapInstruction: { 
-    position: 'absolute', 
-    top: 10, 
-    left: 20, 
-    right: 20, 
-    backgroundColor: COLORS.accent + 'DD', // Semi-transparent
-    padding: 12, 
+  scrollContent: {
+    paddingBottom: 20,
+    flexGrow: 1
+  },
+  mapContainer: {
+    height: 300,
+    marginHorizontal: 0,
+    marginVertical: 15,
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative'
+  },
+  map: {
+    flex: 1
+  },
+  mapInstruction: {
+    position: 'absolute',
+    top: 10,
+    left: 20,
+    right: 20,
+    backgroundColor: COLORS.accent + 'DD',
+    padding: 12,
     borderRadius: 10,
     alignItems: 'center'
   },
-  mapInstructionText: { 
-    fontSize: 13, 
-    color: COLORS.textDark, 
-    fontWeight: 'bold' 
+  mapInstructionText: {
+    fontSize: 13,
+    color: COLORS.textDark,
+    fontWeight: 'bold'
   },
-  
-  // ✅ FIXED: Bottom sheet
-  bottomSheet: { 
-    flex: 1,
-    backgroundColor: COLORS.secondary, 
-    borderTopLeftRadius: 30, 
-    borderTopRightRadius: 30 
-  },
-  bottomSheetContent: { 
-    flex: 1,
-    padding: 20,
-    paddingBottom: Platform.OS === 'android' ? 30 : 20 // Extra padding for Android nav
-  },
-  locationInputContainer: { 
-    backgroundColor: COLORS.primary, 
-    borderRadius: 15, 
-    padding: 5, 
-    marginBottom: 15 
-  },
-  inputWrapper: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    padding: 12 
-  },
-  inputIcon: { 
-    fontSize: 22, 
-    marginRight: 10 
-  },
-  inputContent: { 
-    flex: 1 
-  },
-  inputLabel: { 
-    fontSize: 11, 
-    color: COLORS.text, 
-    opacity: 0.7, 
-    marginBottom: 4 
-  },
-  input: { 
-    fontSize: 15, 
-    color: COLORS.text, 
-    padding: 0 
-  },
-  mapButton: { 
-    paddingHorizontal: 12, 
-    paddingVertical: 8, 
-    marginLeft: 8, 
-    borderRadius: 8 
-  },
-  mapButtonActive: { 
-    backgroundColor: COLORS.accent + '40' 
-  },
-  mapButtonText: { 
-    fontSize: 20 
-  },
-  divider: { 
-    height: 1, 
-    backgroundColor: COLORS.secondary, 
-    marginHorizontal: 12 
-  },
-  
-  // ✅ FIXED: Suggestions ABOVE keyboard
-  suggestionsContainer: { 
-    maxHeight: 200,
+  locationInputContainer: {
     backgroundColor: COLORS.primary,
+    borderRadius: 15,
+    padding: 5,
+    marginHorizontal: 15,
+    marginBottom: 15
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12
+  },
+  inputIcon: {
+    fontSize: 22,
+    marginRight: 10
+  },
+  inputContent: {
+    flex: 1
+  },
+  inputLabel: {
+    fontSize: 11,
+    color: COLORS.text,
+    opacity: 0.7,
+    marginBottom: 4
+  },
+  input: {
+    fontSize: 15,
+    color: COLORS.text,
+    padding: 0
+  },
+  mapButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginLeft: 8,
+    borderRadius: 8
+  },
+  mapButtonActive: {
+    backgroundColor: COLORS.accent + '40'
+  },
+  mapButtonText: {
+    fontSize: 20
+  },
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.secondary,
+    marginHorizontal: 12
+  },
+  suggestionsContainer: {
+    marginHorizontal: 15,
+    marginBottom: 15,
+    backgroundColor: COLORS.secondary,
     borderRadius: 12,
-    marginBottom: 10,
+    maxHeight: 300,
     overflow: 'hidden'
   },
-  suggestionsList: {
-    flexGrow: 0
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center'
   },
-  suggestionItem: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    padding: 15, 
-    borderBottomWidth: 1, 
-    borderBottomColor: COLORS.secondary 
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: COLORS.text
   },
-  suggestionIcon: { 
-    fontSize: 18, 
-    marginRight: 12 
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.primary
   },
-  suggestionText: { 
-    flex: 1, 
-    fontSize: 14, 
-    color: COLORS.text 
+  suggestionIcon: {
+    fontSize: 18,
+    marginRight: 12
   },
-  
-  estimateCard: { 
-    backgroundColor: COLORS.primary, 
-    borderRadius: 12, 
-    padding: 15, 
-    marginBottom: 15 
+  suggestionTextContainer: {
+    flex: 1
   },
-  estimateRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    marginBottom: 10 
+  suggestionMain: {
+    fontSize: 14,
+    color: COLORS.text,
+    fontWeight: '500',
+    marginBottom: 2
   },
-  estimateIcon: { 
-    fontSize: 18, 
-    marginRight: 10, 
-    width: 25 
+  suggestionSub: {
+    fontSize: 12,
+    color: COLORS.text,
+    opacity: 0.7
   },
-  estimateLabel: { 
-    flex: 1, 
-    fontSize: 14, 
-    color: COLORS.text 
+  estimateCard: {
+    backgroundColor: COLORS.secondary,
+    borderRadius: 12,
+    padding: 15,
+    marginHorizontal: 15,
+    marginBottom: 15
   },
-  estimateValue: { 
-    fontSize: 15, 
-    color: COLORS.accent, 
-    fontWeight: 'bold' 
+  estimateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10
   },
-  searchingContainer: { 
-    alignItems: 'center', 
-    padding: 20 
+  estimateIcon: {
+    fontSize: 18,
+    marginRight: 10,
+    width: 25
   },
-  searchingText: { 
-    marginTop: 10, 
-    fontSize: 16, 
-    color: COLORS.text, 
-    fontWeight: 'bold' 
+  estimateLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.text
   },
-  confirmButton: { 
-    backgroundColor: COLORS.accent, 
-    borderRadius: 12, 
-    paddingVertical: 16, 
-    alignItems: 'center' 
+  estimateValue: {
+    fontSize: 15,
+    color: COLORS.accent,
+    fontWeight: 'bold'
   },
-  confirmButtonDisabled: { 
-    opacity: 0.5 
+  searchingContainer: {
+    alignItems: 'center',
+    padding: 20,
+    marginHorizontal: 15
   },
-  confirmButtonText: { 
-    fontSize: 18, 
-    fontWeight: 'bold', 
-    color: COLORS.textDark 
+  searchingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: COLORS.text,
+    fontWeight: 'bold'
   },
+  confirmButton: {
+    backgroundColor: COLORS.accent,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginHorizontal: 15,
+    marginBottom: 15
+  },
+  confirmButtonDisabled: {
+    opacity: 0.5
+  },
+  confirmButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.textDark
+  }
 });
