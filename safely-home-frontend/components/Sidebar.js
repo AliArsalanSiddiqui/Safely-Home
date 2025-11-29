@@ -1,5 +1,5 @@
 // safely-home-frontend/components/Sidebar.js
-// ✅ UPDATED: Add active ride indicator in sidebar
+// ✅ COMPLETE - WITH ACTIVE RIDE INDICATOR
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -11,7 +11,7 @@ import {
   ScrollView,
   Animated,
   Dimensions,
-  ActivityIndicator // ✅ ADD
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,13 +22,13 @@ const { width } = Dimensions.get('window');
 export default function Sidebar({ visible, onClose, navigation, userType }) {
   const [user, setUser] = useState(null);
   const [slideAnim] = useState(new Animated.Value(-width));
-  const [activeRide, setActiveRide] = useState(null); // ✅ NEW
-  const [checkingRide, setCheckingRide] = useState(true); // ✅ NEW
+  const [activeRide, setActiveRide] = useState(null);
+  const [checkingRide, setCheckingRide] = useState(true);
 
   useEffect(() => {
     if (visible) {
       loadUser();
-      checkActiveRide(); // ✅ Check for active ride when sidebar opens
+      checkActiveRide();
     }
   }, [visible]);
 
@@ -56,7 +56,6 @@ export default function Sidebar({ visible, onClose, navigation, userType }) {
     }
   };
 
-  // ✅ NEW: Check for active ride
   const checkActiveRide = async () => {
     try {
       const tokenData = await AsyncStorage.getItem('token');
@@ -64,6 +63,8 @@ export default function Sidebar({ visible, onClose, navigation, userType }) {
         setCheckingRide(false);
         return;
       }
+
+      console.log('🔍 Sidebar checking for active ride...');
 
       const response = await fetch(`${API_URL}/rides/active`, {
         method: 'GET',
@@ -75,10 +76,17 @@ export default function Sidebar({ visible, onClose, navigation, userType }) {
 
       if (response.ok) {
         const data = await response.json();
-        setActiveRide(data.activeRide);
+        
+        if (data.activeRide) {
+          console.log('✅ Active ride found in sidebar:', data.activeRide._id);
+          setActiveRide(data.activeRide);
+        } else {
+          console.log('ℹ️ No active ride in sidebar');
+          setActiveRide(null);
+        }
       }
     } catch (error) {
-      console.error('Error checking active ride:', error);
+      console.error('❌ Sidebar - Error checking active ride:', error);
     } finally {
       setCheckingRide(false);
     }
@@ -89,9 +97,10 @@ export default function Sidebar({ visible, onClose, navigation, userType }) {
     setTimeout(() => navigation.navigate(screen), 300);
   };
 
-  // ✅ NEW: Navigate to active ride tracking
   const handleGoToActiveRide = () => {
     if (!activeRide) return;
+
+    console.log('🔄 Navigating to active ride from sidebar:', activeRide._id);
 
     onClose();
     
@@ -174,11 +183,13 @@ export default function Sidebar({ visible, onClose, navigation, userType }) {
 
               <View style={styles.divider} />
 
-              {/* ✅ NEW: Active Ride Section */}
+              {/* ✅ ACTIVE RIDE SECTION */}
               {checkingRide ? (
                 <View style={styles.activeRideSection}>
-                  <ActivityIndicator color={COLORS.accent} />
-                  <Text style={styles.activeRideCheckingText}>Checking for active ride...</Text>
+                  <View style={styles.checkingContainer}>
+                    <ActivityIndicator color={COLORS.accent} size="small" />
+                    <Text style={styles.checkingText}>Checking for active ride...</Text>
+                  </View>
                 </View>
               ) : activeRide ? (
                 <View style={styles.activeRideSection}>
@@ -189,10 +200,18 @@ export default function Sidebar({ visible, onClose, navigation, userType }) {
                     highlight={true}
                   />
                   <Text style={styles.activeRideStatus}>
-                    Status: {activeRide.status === 'requested' ? 'Finding Driver...' :
-                             activeRide.status === 'accepted' ? 'Driver On The Way' :
-                             activeRide.status === 'started' ? 'Trip In Progress' : activeRide.status}
+                    Status: {
+                      activeRide.status === 'requested' ? '🔍 Finding Driver...' :
+                      activeRide.status === 'accepted' ? '✅ Driver On The Way' :
+                      activeRide.status === 'started' ? '🚀 Trip In Progress' : 
+                      activeRide.status
+                    }
                   </Text>
+                  {activeRide.driverId && (
+                    <Text style={styles.activeRideDriver}>
+                      Driver: {activeRide.driverId.name}
+                    </Text>
+                  )}
                   <View style={styles.divider} />
                 </View>
               ) : null}
@@ -341,23 +360,35 @@ const styles = StyleSheet.create({
     marginVertical: 10
   },
   
-  // ✅ NEW: Active Ride Section Styles
+  // Active Ride Section
   activeRideSection: {
     paddingVertical: 10
   },
-  activeRideCheckingText: {
+  checkingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 15
+  },
+  checkingText: {
     fontSize: 13,
     color: COLORS.text,
-    textAlign: 'center',
-    marginTop: 10,
+    marginLeft: 10,
     opacity: 0.7
   },
   activeRideStatus: {
-    fontSize: 12,
+    fontSize: 13,
     color: COLORS.accent,
     paddingHorizontal: 20,
-    paddingBottom: 10,
+    paddingBottom: 5,
     fontWeight: '600'
+  },
+  activeRideDriver: {
+    fontSize: 12,
+    color: COLORS.text,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+    opacity: 0.8
   },
   
   menuSection: {
@@ -369,7 +400,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     paddingHorizontal: 20
   },
-  menuItemHighlight: { // ✅ NEW: Highlight active ride
+  menuItemHighlight: {
     backgroundColor: COLORS.accent + '20',
     borderLeftWidth: 4,
     borderLeftColor: COLORS.accent
@@ -384,7 +415,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontWeight: '500'
   },
-  menuLabelHighlight: { // ✅ NEW
+  menuLabelHighlight: {
     color: COLORS.accent,
     fontWeight: 'bold'
   },
@@ -393,7 +424,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     opacity: 0.3
   },
-  menuArrowHighlight: { // ✅ NEW
+  menuArrowHighlight: {
     color: COLORS.accent,
     opacity: 1
   },

@@ -144,10 +144,10 @@ export default function RiderTrackingScreen({ navigation, route }) {
 
   const handleCallDriver = () => {
   makePhoneCall(driver?.phone, driver?.name || 'Driver');
-  };
+};
   const handleEmergency = () => {
   makeEmergencyCall();
-  };
+};
 
   const handleOpenChat = () => {
     setUnreadMessages(0);

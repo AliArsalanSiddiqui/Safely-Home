@@ -93,7 +93,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
 
   const handleCallRider = () => {
   makePhoneCall(riderInfo?.phone, riderInfo?.name || 'Rider');
-  };
+};
 
   const handleOpenChat = () => {
     setUnreadMessages(0);
@@ -196,7 +196,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
   // ✅ FIXED: Proper emergency 911 call function
   const handleEmergency = () => {
   makeEmergencyCall();
-  };
+};
 
   const getStatusText = () => {
     switch (rideStatus) {

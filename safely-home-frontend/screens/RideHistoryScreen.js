@@ -1,4 +1,6 @@
 // safely-home-frontend/screens/RideHistoryScreen.js
+// ✅ COMPLETE - SHOWS ALL COMPLETED/CANCELLED RIDES
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -45,6 +47,8 @@ export default function RideHistoryScreen({ navigation }) {
 
   const fetchRideHistory = async (authToken) => {
     try {
+      console.log('📜 Fetching ride history...');
+      
       const response = await fetch(`${API_URL}/rides/history`, {
         method: 'GET',
         headers: {
@@ -55,10 +59,13 @@ export default function RideHistoryScreen({ navigation }) {
 
       if (response.ok) {
         const data = await response.json();
+        console.log(`✅ Loaded ${data.rides?.length || 0} historical rides`);
         setRides(data.rides || []);
+      } else {
+        console.error('❌ Failed to fetch history:', response.status);
       }
     } catch (error) {
-      console.error('Failed to fetch ride history:', error);
+      console.error('❌ Failed to fetch ride history:', error);
     }
   };
 
@@ -69,17 +76,14 @@ export default function RideHistoryScreen({ navigation }) {
   };
 
   const RideCard = ({ ride }) => (
-    <TouchableOpacity 
-      style={styles.rideCard}
-      onPress={() => navigation.navigate('RideDetails', { rideId: ride._id })}
-      activeOpacity={0.7}
-    >
+    <View style={styles.rideCard}>
       <View style={styles.rideHeader}>
-        <View style={styles.statusBadge}>
+        <View style={[
+          styles.statusBadge,
+          ride.status === 'completed' ? styles.statusCompleted : styles.statusCancelled
+        ]}>
           <Text style={styles.statusText}>
-            {ride.status === 'completed' ? '✓ Completed' : 
-             ride.status === 'cancelled' ? '✗ Cancelled' : 
-             ride.status}
+            {ride.status === 'completed' ? '✓ Completed' : '✗ Cancelled'}
           </Text>
         </View>
         <Text style={styles.rideDate}>
@@ -127,7 +131,7 @@ export default function RideHistoryScreen({ navigation }) {
           <Text style={styles.ratingStars}>{'⭐'.repeat(ride.feedback.rating)}</Text>
         </View>
       )}
-    </TouchableOpacity>
+    </View>
   );
 
   if (loading) {
@@ -211,10 +215,15 @@ const styles = StyleSheet.create({
     marginBottom: 15
   },
   statusBadge: {
-    backgroundColor: COLORS.accent + '30',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12
+  },
+  statusCompleted: {
+    backgroundColor: COLORS.accent + '30'
+  },
+  statusCancelled: {
+    backgroundColor: COLORS.light + '30'
   },
   statusText: {
     fontSize: 12,

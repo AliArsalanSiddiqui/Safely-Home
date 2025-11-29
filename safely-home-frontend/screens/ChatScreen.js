@@ -1,16 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
-  FlatList, 
-  KeyboardAvoidingView, 
-  Platform,
-} from 'react-native';
-import { SafeAreaView } from "react-native-safe-area-context";
-
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../config';
 import socketService from '../services/socket';
@@ -20,7 +9,7 @@ export default function ChatScreen({ navigation, route }) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [currentUserId, setCurrentUserId] = useState(null);
-  const [currentUserName, setCurrentUserName] = useState('');
+  const [currentUserName, setCurrentUserName] = useState(''); // ✅ FIXED: Track current user name
   const flatListRef = useRef(null);
 
   useEffect(() => {
@@ -110,113 +99,82 @@ export default function ChatScreen({ navigation, route }) {
     );
   };
 
- return (
+  return (
     <KeyboardAvoidingView 
-      style={{ flex: 1 }}
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backButton}>←</Text>
-          </TouchableOpacity>
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerTitle}>{otherUser?.name || 'Chat'}</Text>
-            <Text style={styles.headerSubtitle}>
-              {userType === 'rider' ? 'Your Driver' : 'Your Rider'}
-            </Text>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backButton}>←</Text>
+        </TouchableOpacity>
+        <View style={styles.headerInfo}>
+          {/* ✅ FIXED: Show actual other user name */}
+          <Text style={styles.headerTitle}>{otherUser?.name || 'Chat'} </Text>
+          <Text style={styles.headerSubtitle}>
+            {userType === 'rider' ? 'Your Driver' : 'Your Rider'} </Text>
+        </View>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        renderItem={renderMessage}
+        keyExtractor={(item, index) => item._id?.toString() || index.toString()}
+        contentContainerStyle={styles.messagesList}
+        onContentSizeChange={scrollToBottom}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>💬</Text>
+            <Text style={styles.emptyText}>No messages yet </Text>
+            <Text style={styles.emptySubtext}>Send a message to start chatting </Text>
           </View>
-          <View style={{ width: 40 }} />
-        </View>
+        }
+      />
 
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={renderMessage}
-          keyExtractor={(item, index) => item._id?.toString() || index.toString()}
-          contentContainerStyle={styles.messagesList}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>💬</Text>
-              <Text style={styles.emptyText}>No messages yet</Text>
-            </View>
-          }
-        />
-
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="Type a message..."
-            placeholderTextColor="#999"
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-            maxLength={500}
-          />
-          <TouchableOpacity 
-            style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
-            onPress={sendMessage}
-            disabled={!inputText.trim()}
-          >
-            <Text style={styles.sendButtonText}>Send</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder="Type a message..."
+          placeholderTextColor="#999"
+          value={inputText}
+          onChangeText={setInputText}
+          multiline
+          maxLength={500} />
+        <TouchableOpacity 
+          style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+          onPress={sendMessage}
+          disabled={!inputText.trim()} >
+          <Text style={styles.sendButtonText}>Send</Text>
+        </TouchableOpacity>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: COLORS.primary
-  },
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    padding: 20, 
-    paddingTop: 10, // ✅ Adjust for SafeAreaView
-    backgroundColor: COLORS.secondary 
-  },
+  container: { flex: 1, backgroundColor: COLORS.primary },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 60, backgroundColor: COLORS.secondary },
   backButton: { fontSize: 30, color: COLORS.accent },
   headerInfo: { flex: 1, alignItems: 'center' },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.text },
   headerSubtitle: { fontSize: 14, color: COLORS.text, opacity: 0.7 },
-  messagesList: { 
-    padding: 20, 
-    paddingBottom: 10 
-  },
+  messagesList: { padding: 20, paddingBottom: 10 },
   emptyContainer: { alignItems: 'center', marginTop: 100 },
   emptyIcon: { fontSize: 80, marginBottom: 20 },
-  emptyText: { fontSize: 18, color: COLORS.text, fontWeight: 'bold' },
-  inputContainer: { 
-    flexDirection: 'row', 
-    padding: 15, 
-    backgroundColor: COLORS.secondary, 
-    alignItems: 'flex-end',
-    paddingBottom: Platform.OS === 'android' ? 25 : 15 // ✅ Android nav button fix
-  },
-  input: { 
-    flex: 1, 
-    backgroundColor: COLORS.primary, 
-    borderRadius: 25, 
-    paddingHorizontal: 20, 
-    paddingVertical: 12, 
-    color: COLORS.text, 
-    fontSize: 16, 
-    maxHeight: 100, 
-    marginRight: 10 
-  },
-  sendButton: { 
-    backgroundColor: COLORS.accent, 
-    borderRadius: 25, 
-    paddingHorizontal: 25, 
-    paddingVertical: 12, 
-    justifyContent: 'center' 
-  },
+  emptyText: { fontSize: 18, color: COLORS.text, fontWeight: 'bold', marginBottom: 8 },
+  emptySubtext: { fontSize: 14, color: COLORS.text, opacity: 0.7 },
+  messageContainer: { maxWidth: '80%', marginBottom: 15, padding: 15, borderRadius: 15 },
+  myMessage: { alignSelf: 'flex-end', backgroundColor: COLORS.accent },
+  theirMessage: { alignSelf: 'flex-start', backgroundColor: COLORS.secondary },
+  senderName: { fontSize: 12, color: COLORS.text, opacity: 0.8, marginBottom: 4, fontWeight: 'bold' },
+  messageText: { fontSize: 16, color: COLORS.text, marginBottom: 4 },
+  messageTime: { fontSize: 11, color: COLORS.text, opacity: 0.6, alignSelf: 'flex-end' },
+  inputContainer: { flexDirection: 'row', padding: 15, backgroundColor: COLORS.secondary, alignItems: 'flex-end' },
+  input: { flex: 1, backgroundColor: COLORS.primary, borderRadius: 25, paddingHorizontal: 20, paddingVertical: 12, color: COLORS.text, fontSize: 16, maxHeight: 100, marginRight: 10 },
+  sendButton: { backgroundColor: COLORS.accent, borderRadius: 25, paddingHorizontal: 25, paddingVertical: 12, justifyContent: 'center' },
   sendButtonDisabled: { opacity: 0.5 },
-  sendButtonText: { fontSize: 16, fontWeight: 'bold', color: COLORS.textDark }
+  sendButtonText: { fontSize: 16, fontWeight: 'bold', color: COLORS.textDark },
 });

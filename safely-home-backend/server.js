@@ -127,7 +127,7 @@ const rideSchema = new mongoose.Schema({
     enum: ['requested', 'accepted', 'started', 'completed', 'cancelled'],
     default: 'requested'
   },
-  active: { type: Boolean, default: true }, // ✅ NEW: Track active vs history
+  active: { type: Boolean, default: true }, // ✅ CRITICAL
   feedback: {
     rating: Number,
     tags: [Number],
@@ -511,26 +511,6 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
       genderPreference: rider.genderPreference
     });
 
-    // ✅ CRITICAL: ENFORCE GENDER RULES
-    // Male riders can ONLY select male drivers
-    // Female riders can select female, male, or any
-    
-    let allowedPreference = rider.genderPreference;
-
-    if (rider.gender === 'male') {
-      // ✅ RULE: Male riders MUST use male drivers
-      if (allowedPreference === 'female') {
-        return res.status(400).json({
-          success: false,
-          error: 'Male riders can only select male drivers for safety reasons'
-        });
-      }
-      // Force male preference if not set
-      if (!allowedPreference || allowedPreference === 'any') {
-        allowedPreference = 'male';
-      }
-    }
-
     // Calculate distance and fare
     const pickupCoords = pickup.coordinates;
     const destCoords = destination.coordinates;
@@ -548,7 +528,6 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
       calculatedETA = calculateETA(calculatedDistance);
     }
 
-    // ✅ NEW: Mark ride as active when created
     const ride = new Ride({
       riderId: req.user.userId,
       pickup: {
@@ -563,38 +542,36 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
       distance: calculatedDistance,
       estimatedTime: calculatedETA,
       status: 'requested',
-      active: true // ✅ NEW: Track active rides
+      active: true
     });
 
     await ride.save();
 
-    // ✅ UPDATED: Gender-based driver filtering
+    // ✅ CRITICAL FIX: Gender-based filtering
     let driverFilter = {
       userType: 'driver',
       isOnline: true
     };
 
-    if (allowedPreference === 'female') {
-      driverFilter.gender = 'female';
-      console.log('✅ Filtering for FEMALE drivers only');
-    } else if (allowedPreference === 'male') {
+    // Apply gender preference
+    if (rider.genderPreference && rider.genderPreference !== 'any') {
+      driverFilter.gender = rider.genderPreference;
+      console.log(`✅ Filtering for ${rider.genderPreference} drivers only`);
+    } else if (rider.gender === 'male') {
+      // Male riders can only get male drivers
       driverFilter.gender = 'male';
-      console.log('✅ Filtering for MALE drivers only');
-    } else if (allowedPreference === 'any') {
-      console.log('✅ No gender filter - showing all drivers');
+      console.log('✅ Male rider - showing male drivers only');
+    } else {
+      console.log('✅ No gender filter applied');
     }
 
     const drivers = await User.find(driverFilter).limit(20);
 
-    console.log(`✅ Found ${drivers.length} available drivers matching filter:`, {
-      riderGender: rider.gender,
-      genderPreference: allowedPreference,
-      driverFilter: driverFilter
-    });
+    console.log(`✅ Found ${drivers.length} drivers matching:`, driverFilter);
 
-    // Emit to matching drivers only
+    // Emit to matching drivers ONLY
     drivers.forEach(driver => {
-      console.log('🔔 Notifying driver:', driver.name, driver._id.toString());
+      console.log(`🔔 Notifying ${driver.gender} driver: ${driver.name}`);
       io.to(driver._id.toString()).emit('newRideRequest', {
         rideId: ride._id,
         riderId: rider._id,
@@ -635,10 +612,6 @@ app.get('/api/rides/available', authenticateToken, async (req, res) => {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
-    // ✅ ONLY show rides that are:
-    // 1. Status: requested (not accepted/completed/cancelled)
-    // 2. Active: true
-    // 3. No driver assigned yet
     const rides = await Ride.find({ 
       status: 'requested',
       active: true,
@@ -648,7 +621,7 @@ app.get('/api/rides/available', authenticateToken, async (req, res) => {
     .sort({ createdAt: -1 })
     .limit(10);
 
-    console.log(`📋 Found ${rides.length} available rides for driver:`, driver.name);
+    console.log(`📋 ${rides.length} available rides for driver: ${driver.name}`);
 
     res.json({ 
       success: true, 
@@ -755,12 +728,14 @@ app.post('/api/ride/complete', authenticateToken, async (req, res) => {
       { 
         status: 'completed', 
         completedAt: new Date(),
-        active: false // ✅ Mark as inactive (moves to history)
+        active: false // ✅ Move to history
       },
       { new: true }
     );
     
-    if (!ride) return res.status(404).json({ success: false, error: 'Ride not found' });
+    if (!ride) {
+      return res.status(404).json({ success: false, error: 'Ride not found' });
+    }
     
     console.log('✅ Ride completed and moved to history:', rideId);
     
@@ -786,7 +761,7 @@ app.post('/api/ride/cancel', authenticateToken, async (req, res) => {
       rideId, 
       { 
         status: 'cancelled',
-        active: false // ✅ Mark as inactive when cancelled
+        active: false // ✅ Move to history
       }, 
       { new: true }
     );
@@ -795,9 +770,8 @@ app.post('/api/ride/cancel', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Ride not found' });
     }
     
-    console.log('⚠️ Ride cancelled:', rideId);
+    console.log('⚠️ Ride cancelled and moved to history:', rideId);
     
-    // Emit to both rider and driver
     io.to(ride.riderId.toString()).emit('rideCancelled', { rideId: ride._id });
     if (ride.driverId) {
       io.to(ride.driverId.toString()).emit('rideCancelled', { rideId: ride._id });
@@ -921,46 +895,6 @@ app.get('/api/rides/:rideId', authenticateToken, async (req, res) => {
   }
 });
 // ============================================
-// RIDE HISTORY ENDPOINT (NEW)
-// ============================================
-
-app.get('/api/rides/history', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const userType = req.user.userType;
-
-    console.log('📜 Fetching ride history for:', userId, userType);
-
-    // Build query based on user type
-    const query = {
-      status: { $in: ['completed', 'cancelled'] } // Only show finished rides
-    };
-
-    if (userType === 'rider') {
-      query.riderId = userId;
-    } else {
-      query.driverId = userId;
-    }
-
-    // Fetch rides with populated user info
-    const rides = await Ride.find(query)
-      .populate('riderId', 'name phone')
-      .populate('driverId', 'name phone rating vehicleInfo')
-      .sort({ createdAt: -1 }) // Newest first
-      .limit(100);
-
-    console.log(`✅ Found ${rides.length} historical rides`);
-
-    res.json({
-      success: true,
-      rides: rides
-    });
-  } catch (error) {
-    console.error('❌ Ride history error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-// ============================================
 // GET ACTIVE RIDE ENDPOINT (NEW)
 // Returns the rider's current active ride if any
 // ============================================
@@ -970,11 +904,10 @@ app.get('/api/rides/active', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     const userType = req.user.userType;
 
-    console.log('🔍 Checking for active ride:', userId, userType);
+    console.log('🔍 Checking active ride for:', userId);
 
-    // Build query based on user type
     let query = {
-      status: { $in: ['requested', 'accepted', 'started'] }, // Active statuses
+      status: { $in: ['requested', 'accepted', 'started'] },
       active: true
     };
 
@@ -984,36 +917,60 @@ app.get('/api/rides/active', authenticateToken, async (req, res) => {
       query.driverId = userId;
     }
 
-    // Find the most recent active ride
     const activeRide = await Ride.findOne(query)
       .populate('riderId', 'name phone gender')
       .populate('driverId', 'name phone rating vehicleInfo gender')
-      .sort({ createdAt: -1 }); // Get most recent
+      .sort({ createdAt: -1 });
 
     if (activeRide) {
-      console.log('✅ Active ride found:', {
-        rideId: activeRide._id,
-        status: activeRide.status,
-        rider: activeRide.riderId?.name,
-        driver: activeRide.driverId?.name || 'Not assigned'
-      });
-
-      res.json({
-        success: true,
-        activeRide: activeRide
-      });
+      console.log('✅ Active ride found:', activeRide._id);
+      res.json({ success: true, activeRide });
     } else {
-      console.log('ℹ️ No active ride found');
-      res.json({
-        success: true,
-        activeRide: null
-      });
+      console.log('ℹ️ No active ride');
+      res.json({ success: true, activeRide: null });
     }
   } catch (error) {
     console.error('❌ Get active ride error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
+// ============================================
+// RIDE HISTORY ENDPOINT (NEW)
+// ============================================
+
+app.get('/api/rides/history', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const userType = req.user.userType;
+
+    console.log('📜 Fetching ride history for:', userId);
+
+    let query = {
+      status: { $in: ['completed', 'cancelled'] },
+      active: false
+    };
+
+    if (userType === 'rider') {
+      query.riderId = userId;
+    } else {
+      query.driverId = userId;
+    }
+
+    const rides = await Ride.find(query)
+      .populate('riderId', 'name phone gender')
+      .populate('driverId', 'name phone rating vehicleInfo gender')
+      .sort({ createdAt: -1 })
+      .limit(100);
+
+    console.log(`✅ Found ${rides.length} historical rides`);
+
+    res.json({ success: true, rides });
+  } catch (error) {
+    console.error('❌ Ride history error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 
 app.get('/api/admin/active-rides', authenticateToken, async (req, res) => {
   try {

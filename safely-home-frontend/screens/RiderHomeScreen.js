@@ -1,28 +1,24 @@
-// ============================================
-// SOLUTION 1: Active Ride Banner on Home Screen
-// ============================================
-
 // safely-home-frontend/screens/RiderHomeScreen.js
-// ADD THIS SECTION AFTER HEADER, BEFORE SCROLLVIEW
+// ✅ COMPLETE - WITH ACTIVE RIDE BANNER
 
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Image,
-  Alert,
-  ScrollView,
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  StyleSheet, 
+  Image, 
+  Alert, 
+  ScrollView, 
   RefreshControl,
-  ActivityIndicator // ✅ ADD
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, API_URL } from '../config';
 import { logout } from '../services/api';
 import Sidebar from '../components/Sidebar';
-import socketService from '../services/socket'; // ✅ ADD
+import socketService from '../services/socket';
 
 export default function RiderHomeScreen({ navigation }) {
   const [user, setUser] = useState(null);
@@ -30,7 +26,7 @@ export default function RiderHomeScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   
-  // ✅ NEW: Active ride tracking
+  // Active ride tracking
   const [activeRide, setActiveRide] = useState(null);
   const [checkingRide, setCheckingRide] = useState(true);
   const [token, setToken] = useState(null);
@@ -38,12 +34,12 @@ export default function RiderHomeScreen({ navigation }) {
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       loadUser();
-      checkActiveRide(); // ✅ Check for active ride when screen loads
+      checkActiveRide();
     });
     
     loadUser();
     checkActiveRide();
-    setupSocketListeners(); // ✅ Listen for ride updates
+    setupSocketListeners();
     
     return unsubscribe;
   }, [navigation]);
@@ -59,12 +55,11 @@ export default function RiderHomeScreen({ navigation }) {
       
       if (tokenData) {
         setToken(tokenData);
-        socketService.connect(parsed.id); // ✅ Connect socket
+        socketService.connect(parsed.id);
       }
     }
   };
 
-  // ✅ NEW: Check for active ride
   const checkActiveRide = async () => {
     try {
       const tokenData = await AsyncStorage.getItem('token');
@@ -73,7 +68,7 @@ export default function RiderHomeScreen({ navigation }) {
         return;
       }
 
-      console.log('🔍 Checking for active ride...');
+      console.log('🔍 Home checking for active ride...');
 
       const response = await fetch(`${API_URL}/rides/active`, {
         method: 'GET',
@@ -101,11 +96,10 @@ export default function RiderHomeScreen({ navigation }) {
     }
   };
 
-  // ✅ NEW: Socket listeners for ride updates
   const setupSocketListeners = () => {
     socketService.on('driverAccepted', (data) => {
       console.log('✅ Driver accepted (updating active ride)');
-      checkActiveRide(); // Refresh active ride
+      checkActiveRide();
     });
 
     socketService.on('rideCompleted', () => {
@@ -128,11 +122,10 @@ export default function RiderHomeScreen({ navigation }) {
   const onRefresh = async () => {
     setRefreshing(true);
     await loadUser();
-    await checkActiveRide(); // ✅ Refresh active ride
+    await checkActiveRide();
     setRefreshing(false);
   };
 
-  // ✅ NEW: Navigate to active ride tracking
   const handleGoToActiveRide = () => {
     if (!activeRide) return;
 
@@ -153,7 +146,7 @@ export default function RiderHomeScreen({ navigation }) {
         text: 'Logout',
         onPress: async () => {
           await logout();
-          socketService.disconnect(); // ✅ Disconnect socket
+          socketService.disconnect();
           navigation.replace('Login');
         }
       }
@@ -186,10 +179,10 @@ export default function RiderHomeScreen({ navigation }) {
         userType="rider"
       />
 
-      {/* ✅ NEW: Active Ride Banner */}
+      {/* ✅ ACTIVE RIDE BANNER */}
       {checkingRide ? (
         <View style={styles.activeRideBanner}>
-          <ActivityIndicator color={COLORS.accent} />
+          <ActivityIndicator color={COLORS.accent} size="small" />
           <Text style={styles.activeRideText}>Checking for active ride...</Text>
         </View>
       ) : activeRide ? (
@@ -219,7 +212,7 @@ export default function RiderHomeScreen({ navigation }) {
         </TouchableOpacity>
       ) : null}
 
-      {/* Rest of the screen content */}
+      {/* Content */}
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -232,7 +225,6 @@ export default function RiderHomeScreen({ navigation }) {
           />
         }
       >
-        {/* Gender Preference */}
         <TouchableOpacity 
           style={styles.prefButton} 
           onPress={() => navigation.navigate('GenderPreference')}
@@ -247,14 +239,13 @@ export default function RiderHomeScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        {/* Booking Card */}
         <View style={styles.bookingCard}>
           <Text style={styles.cardTitle}>Book Your Ride</Text>
           
           <View style={styles.locationInputs}>
             <TouchableOpacity 
               style={styles.locationInput}
-              onPress={() => navigation.navigate('Booking', { editPickup: true })}
+              onPress={() => navigation.navigate('Booking')}
               activeOpacity={0.7}
             >
               <Text style={styles.locationIcon}>📍</Text>
@@ -267,7 +258,7 @@ export default function RiderHomeScreen({ navigation }) {
 
             <TouchableOpacity 
               style={styles.locationInput}
-              onPress={() => navigation.navigate('Booking', { editDestination: true })}
+              onPress={() => navigation.navigate('Booking')}
               activeOpacity={0.7}
             >
               <Text style={styles.locationIcon}>🎯</Text>
@@ -288,7 +279,6 @@ export default function RiderHomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Welcome Card */}
         <View style={styles.welcomeCard}>
           <Text style={styles.welcomeText}>Welcome back, {user?.name || 'Rider'}! 👋</Text>
           <Text style={styles.welcomeSubtext}>Where would you like to go today?</Text>
@@ -301,10 +291,7 @@ export default function RiderHomeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: COLORS.primary 
-  },
+  container: { flex: 1, backgroundColor: COLORS.primary },
   header: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
@@ -327,30 +314,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center'
   },
-  logo: { 
-    width: 40, 
-    height: 40, 
-    marginRight: 10 
-  },
-  headerTitle: { 
-    fontSize: 18, 
-    fontWeight: 'bold', 
-    color: COLORS.accent, 
-    letterSpacing: 1 
-  },
-  logoutButton: { 
-    width: 40, 
-    height: 40, 
-    borderRadius: 20, 
-    backgroundColor: COLORS.light, 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  logoutText: { 
-    fontSize: 20 
-  },
+  logo: { width: 40, height: 40, marginRight: 10 },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.accent, letterSpacing: 1 },
+  logoutButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.light, justifyContent: 'center', alignItems: 'center' },
+  logoutText: { fontSize: 20 },
 
-  // ✅ NEW: Active Ride Banner Styles
+  // Active Ride Banner
   activeRideBanner: {
     backgroundColor: COLORS.accent,
     marginHorizontal: 20,
@@ -381,12 +350,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 15
   },
-  activeRideIconText: {
-    fontSize: 28
-  },
-  activeRideInfo: {
-    flex: 1
-  },
+  activeRideIconText: { fontSize: 28 },
+  activeRideInfo: { flex: 1 },
   activeRideTitle: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -398,9 +363,7 @@ const styles = StyleSheet.create({
     color: COLORS.textDark,
     opacity: 0.8
   },
-  activeRideArrow: {
-    marginLeft: 10
-  },
+  activeRideArrow: { marginLeft: 10 },
   activeRideArrowText: {
     fontSize: 30,
     color: COLORS.textDark,
@@ -413,12 +376,8 @@ const styles = StyleSheet.create({
     fontWeight: '600'
   },
 
-  scrollView: { 
-    flex: 1 
-  },
-  scrollContent: { 
-    paddingBottom: 100 
-  },
+  scrollView: { flex: 1 },
+  scrollContent: { paddingBottom: 100 },
   prefButton: { 
     marginHorizontal: 20, 
     marginBottom: 20, 
@@ -426,58 +385,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, 
     paddingVertical: 15, 
     borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    elevation: 2
   },
   prefButtonContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center'
   },
-  prefButtonLabel: { 
-    fontSize: 14, 
-    color: COLORS.text, 
-    opacity: 0.8 
-  },
-  prefValueContainer: { 
-    flexDirection: 'row', 
-    alignItems: 'center' 
-  },
-  prefValue: { 
-    fontSize: 16, 
-    color: COLORS.accent, 
-    fontWeight: 'bold', 
-    marginRight: 5 
-  },
-  prefArrow: { 
-    fontSize: 24, 
-    color: COLORS.accent, 
-    fontWeight: 'bold' 
-  },
+  prefButtonLabel: { fontSize: 14, color: COLORS.text, opacity: 0.8 },
+  prefValueContainer: { flexDirection: 'row', alignItems: 'center' },
+  prefValue: { fontSize: 16, color: COLORS.accent, fontWeight: 'bold', marginRight: 5 },
+  prefArrow: { fontSize: 24, color: COLORS.accent, fontWeight: 'bold' },
   bookingCard: { 
     backgroundColor: COLORS.secondary, 
     marginHorizontal: 20, 
     borderRadius: 20, 
     padding: 25, 
     marginBottom: 20,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
+    elevation: 3
   },
-  cardTitle: { 
-    fontSize: 22, 
-    fontWeight: 'bold', 
-    color: COLORS.text, 
-    marginBottom: 20 
-  },
-  locationInputs: { 
-    marginBottom: 20 
-  },
+  cardTitle: { fontSize: 22, fontWeight: 'bold', color: COLORS.text, marginBottom: 20 },
+  locationInputs: { marginBottom: 20 },
   locationInput: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -486,71 +414,29 @@ const styles = StyleSheet.create({
     padding: 15, 
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: COLORS.accent + '30',
+    borderColor: COLORS.accent + '30'
   },
-  locationIcon: { 
-    fontSize: 24, 
-    marginRight: 12 
-  },
-  locationTextContainer: { 
-    flex: 1 
-  },
-  locationLabel: { 
-    fontSize: 12, 
-    color: COLORS.text, 
-    opacity: 0.7, 
-    marginBottom: 4 
-  },
-  locationValue: { 
-    fontSize: 16, 
-    color: COLORS.text, 
-    fontWeight: '500' 
-  },
-  locationArrow: { 
-    fontSize: 24, 
-    color: COLORS.accent, 
-    fontWeight: 'bold',
-    marginLeft: 10
-  },
+  locationIcon: { fontSize: 24, marginRight: 12 },
+  locationTextContainer: { flex: 1 },
+  locationLabel: { fontSize: 12, color: COLORS.text, opacity: 0.7, marginBottom: 4 },
+  locationValue: { fontSize: 16, color: COLORS.text, fontWeight: '500' },
+  locationArrow: { fontSize: 24, color: COLORS.accent, fontWeight: 'bold', marginLeft: 10 },
   confirmButton: { 
     backgroundColor: COLORS.accent, 
     borderRadius: 12, 
     paddingVertical: 16, 
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    elevation: 2
   },
-  confirmButtonText: { 
-    fontSize: 18, 
-    fontWeight: 'bold', 
-    color: COLORS.textDark 
-  },
+  confirmButtonText: { fontSize: 18, fontWeight: 'bold', color: COLORS.textDark },
   welcomeCard: { 
     backgroundColor: COLORS.secondary, 
     marginHorizontal: 20, 
     borderRadius: 15, 
     padding: 20, 
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    elevation: 2
   },
-  welcomeText: { 
-    fontSize: 18, 
-    color: COLORS.text, 
-    fontWeight: 'bold', 
-    marginBottom: 8, 
-    textAlign: 'center' 
-  },
-  welcomeSubtext: { 
-    fontSize: 14, 
-    color: COLORS.text, 
-    opacity: 0.8, 
-    textAlign: 'center' 
-  },
+  welcomeText: { fontSize: 18, color: COLORS.text, fontWeight: 'bold', marginBottom: 8, textAlign: 'center' },
+  welcomeSubtext: { fontSize: 14, color: COLORS.text, opacity: 0.8, textAlign: 'center' }
 });

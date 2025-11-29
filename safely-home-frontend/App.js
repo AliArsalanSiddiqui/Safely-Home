@@ -138,7 +138,6 @@ export default function App() {
           <Stack.Screen name="RiderRegistration" component={RiderRegistrationScreen} />
           <Stack.Screen name="DriverRegistration" component={DriverRegistrationScreen} />
           <Stack.Screen name="GenderPreference" component={GenderPreferenceScreen} />
-          <Stack.Screen name="RideHistory" component={RideHistoryScreen} />
           
           {/* Rider Screens */}
           <Stack.Screen name="RiderHome" component={RiderHomeScreen} />
@@ -147,7 +146,7 @@ export default function App() {
           <Stack.Screen name="Chat" component={ChatScreen} />
           <Stack.Screen name="ReportIssue" component={ReportIssueScreen} />
           <Stack.Screen name="Rating" component={RatingScreen} />
-          
+          <Stack.Screen name="RideHistory" component={RideHistoryScreen} />
           {/* Driver Screens */}
           <Stack.Screen name="DriverHome" component={DriverHomeScreen} />
           <Stack.Screen name="DriverTracking" component={DriverTrackingScreen} />
