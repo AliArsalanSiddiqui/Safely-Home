@@ -22,9 +22,9 @@ import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, GOOGLE_MAPS_API_KEY } from '../config';
-import { requestRide, updateLocation } from '../services/api';
-import socketService from '../services/socket';
 import { requestRide, updateLocation, cancelRide } from '../services/api'; // ✅ Add cancelRide
+import socketService from '../services/socket';
+
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
