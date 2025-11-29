@@ -944,18 +944,27 @@ app.get('/api/rides/history', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     const userType = req.user.userType;
 
-    console.log('📜 Fetching ride history for:', userId);
+    console.log('📜 Fetching ride history for:', {
+      userId: userId,
+      userType: userType
+    });
 
     let query = {
       status: { $in: ['completed', 'cancelled'] },
       active: false
     };
 
+    // ✅ CRITICAL FIX: Convert userId to ObjectId
+    const mongoose = require('mongoose');
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
     if (userType === 'rider') {
-      query.riderId = userId;
+      query.riderId = userObjectId;
     } else {
-      query.driverId = userId;
+      query.driverId = userObjectId;
     }
+
+    console.log('🔍 Query:', JSON.stringify(query));
 
     const rides = await Ride.find(query)
       .populate('riderId', 'name phone gender')
@@ -964,6 +973,17 @@ app.get('/api/rides/history', authenticateToken, async (req, res) => {
       .limit(100);
 
     console.log(`✅ Found ${rides.length} historical rides`);
+
+    // ✅ DEBUG: Log first ride if exists
+    if (rides.length > 0) {
+      console.log('📋 Sample ride:', {
+        id: rides[0]._id,
+        status: rides[0].status,
+        active: rides[0].active,
+        riderId: rides[0].riderId?._id,
+        driverId: rides[0].driverId?._id
+      });
+    }
 
     res.json({ success: true, rides });
   } catch (error) {

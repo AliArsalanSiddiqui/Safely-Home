@@ -31,11 +31,18 @@ export default function RideHistoryScreen({ navigation }) {
       const tokenData = await AsyncStorage.getItem('token');
       const userData = await AsyncStorage.getItem('user');
       
-      if (tokenData) setToken(tokenData);
-      if (userData) {
-        const user = JSON.parse(userData);
-        setUserType(user.userType);
-      }
+       if (userData) {
+      const user = JSON.parse(userData);
+      console.log('🔍 Current User:', {
+        id: user.id,
+        name: user.name,
+        userType: user.userType
+      });
+      setUserType(user.userType);
+    }
+    // ✅ END DEBUG CODE
+    
+    if (tokenData) setToken(tokenData);
 
       await fetchRideHistory(tokenData);
     } catch (error) {
@@ -46,28 +53,33 @@ export default function RideHistoryScreen({ navigation }) {
   };
 
   const fetchRideHistory = async (authToken) => {
-    try {
-      console.log('📜 Fetching ride history...');
-      
-      const response = await fetch(`${API_URL}/rides/history`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`✅ Loaded ${data.rides?.length || 0} historical rides`);
-        setRides(data.rides || []);
-      } else {
-        console.error('❌ Failed to fetch history:', response.status);
+  try {
+    console.log('📜 Fetching ride history...');
+    console.log('🔑 Token:', authToken ? 'Present' : 'Missing');
+    
+    const response = await fetch(`${API_URL}/rides/history`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json'
       }
-    } catch (error) {
-      console.error('❌ Failed to fetch ride history:', error);
+    });
+
+    console.log('📡 Response status:', response.status);
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('✅ Response data:', data);
+      console.log(`📊 Loaded ${data.rides?.length || 0} historical rides`);
+      setRides(data.rides || []);
+    } else {
+      const errorData = await response.text();
+      console.error('❌ Failed to fetch history:', response.status, errorData);
     }
-  };
+  } catch (error) {
+    console.error('❌ Failed to fetch ride history:', error);
+  }
+};
 
   const onRefresh = async () => {
     setRefreshing(true);
