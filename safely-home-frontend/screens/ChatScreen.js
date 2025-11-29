@@ -101,14 +101,11 @@ export default function ChatScreen({ navigation, route }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}
-    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
+      <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.backButton}>←</Text>
@@ -154,8 +151,8 @@ export default function ChatScreen({ navigation, route }) {
           <Text style={styles.sendButtonText}>Send</Text>
         </TouchableOpacity>
       </View>
+      </SafeAreaView>
     </KeyboardAvoidingView>
-    </SafeAreaView>
   );
 }
 
