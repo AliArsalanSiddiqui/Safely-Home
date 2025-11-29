@@ -703,6 +703,11 @@ app.get('/api/debug/me', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+// ============================================
+// FIXED RIDE REQUEST ENDPOINT IN server.js
+// Replace the existing /api/ride/request endpoint with this:
+// ============================================
+
 app.post('/api/ride/request', authenticateToken, async (req, res) => {
   try {
     const { pickup, destination, fare } = req.body;
@@ -756,22 +761,30 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
 
     await ride.save();
 
-    // ✅ CRITICAL FIX: Gender-based filtering
+    // ✅ FIXED: Proper gender-based filtering
     let driverFilter = {
       userType: 'driver',
       isOnline: true
     };
 
-    // Apply gender preference
-    if (rider.genderPreference && rider.genderPreference !== 'any') {
-      driverFilter.gender = rider.genderPreference;
-      console.log(`✅ Filtering for ${rider.genderPreference} drivers only`);
-    } else if (rider.gender === 'male') {
-      // Male riders can only get male drivers
+    // ✅ RULE 1: Male riders can ONLY get male drivers
+    if (rider.gender === 'male') {
       driverFilter.gender = 'male';
-      console.log('✅ Male rider - showing male drivers only');
-    } else {
-      console.log('✅ No gender filter applied');
+      console.log('✅ Male rider - filtering for MALE DRIVERS ONLY');
+    } 
+    // ✅ RULE 2: Female riders with preference
+    else if (rider.gender === 'female') {
+      if (rider.genderPreference === 'female') {
+        driverFilter.gender = 'female';
+        console.log('✅ Female rider - preference: FEMALE DRIVERS ONLY');
+      } else if (rider.genderPreference === 'male') {
+        driverFilter.gender = 'male';
+        console.log('✅ Female rider - preference: MALE DRIVERS ONLY');
+      } else {
+        // genderPreference is 'any' or not set
+        console.log('✅ Female rider - preference: ANY DRIVER');
+        // No gender filter - show all drivers
+      }
     }
 
     const drivers = await User.find(driverFilter).limit(20);
@@ -801,7 +814,8 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
       availableDrivers: drivers.length,
       calculatedFare: calculatedFare.toFixed(2),
       distance: calculatedDistance.toFixed(2) + ' km',
-      estimatedTime: calculatedETA + ' mins'
+      estimatedTime: calculatedETA + ' mins',
+      driverFilter: driverFilter // For debugging
     });
   } catch (error) {
     console.error('❌ Ride request error:', error);
