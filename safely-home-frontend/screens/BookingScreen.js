@@ -24,6 +24,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, GOOGLE_MAPS_API_KEY } from '../config';
 import { requestRide, updateLocation } from '../services/api';
 import socketService from '../services/socket';
+import { requestRide, updateLocation, cancelRide } from '../services/api'; // ✅ Add cancelRide
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -376,65 +377,72 @@ export default function BookingScreen({ navigation, route }) {
   };
 
   const handleBookRide = async () => {
-    if (!pickup || !destination) {
-      Alert.alert('Error', 'Please enter both pickup and destination');
-      return;
-    }
+  if (!pickup || !destination) {
+    Alert.alert('Error', 'Please enter both pickup and destination');
+    return;
+  }
 
-    if (!currentLocation || !destinationLocation) {
-      Alert.alert('Error', 'Please select valid locations');
-      return;
-    }
+  if (!currentLocation || !destinationLocation) {
+    Alert.alert('Error', 'Please select valid locations');
+    return;
+  }
 
-    setLoading(true);
-    setSearchingDriver(true);
+  setLoading(true);
+  setSearchingDriver(true);
 
-    try {
-      const fare = calculatedFare || 50;
+  try {
+    const fare = calculatedFare || 50;
 
-      const rideData = {
-        pickup: {
-          address: pickup,
-          coordinates: [currentLocation.longitude, currentLocation.latitude]
-        },
-        destination: {
-          address: destination,
-          coordinates: [destinationLocation.longitude, destinationLocation.latitude]
-        },
-        fare
-      };
+    const rideData = {
+      pickup: {
+        address: pickup,
+        coordinates: [currentLocation.longitude, currentLocation.latitude]
+      },
+      destination: {
+        address: destination,
+        coordinates: [destinationLocation.longitude, destinationLocation.latitude]
+      },
+      fare
+    };
 
-      const response = await requestRide(rideData.pickup, rideData.destination, rideData.fare);
+    const response = await requestRide(rideData.pickup, rideData.destination, rideData.fare);
 
-      if (response.success) {
-        setCurrentRideId(response.rideId);
-        
-        Alert.alert(
-          'Finding Driver',
-          `Looking for ${response.availableDrivers} available drivers...\n\n💰 Fare: ${response.calculatedFare} pkr\n📍 Distance: ${response.distance}\n⏱️ ETA: ${response.estimatedTime}`,
-          [
-            {
-              text: 'Cancel Search',
-              onPress: () => {
-                setSearchingDriver(false);
-                navigation.goBack();
-              },
-              style: 'cancel'
-            }
-          ]
-        );
-      } else {
-        setSearchingDriver(false);
-        Alert.alert('Booking Failed', response.error || 'Please try again');
-      }
-    } catch (error) {
+    if (response.success) {
+      setCurrentRideId(response.rideId);
+      
+      Alert.alert(
+        'Finding Driver',
+        `Looking for ${response.availableDrivers} available drivers...\n\n💰 Fare: ${response.calculatedFare} pkr\n📍 Distance: ${response.distance}\n⏱️ ETA: ${response.estimatedTime}`,
+        [
+          {
+            text: 'Cancel Search',
+            onPress: async () => {
+              // ✅ NEW: Cancel the ride when search is cancelled
+              try {
+                await cancelRide(response.rideId);
+                console.log('✅ Ride cancelled during search');
+              } catch (error) {
+                console.error('❌ Failed to cancel ride:', error);
+              }
+              setSearchingDriver(false);
+              navigation.goBack();
+            },
+            style: 'cancel'
+          }
+        ]
+      );
+    } else {
       setSearchingDriver(false);
-      console.error('Booking error:', error);
-      Alert.alert('Booking Failed', error.response?.data?.error || 'Please try again');
-    } finally {
-      setLoading(false);
+      Alert.alert('Booking Failed', response.error || 'Please try again');
     }
-  };
+  } catch (error) {
+    setSearchingDriver(false);
+    console.error('Booking error:', error);
+    Alert.alert('Booking Failed', error.response?.data?.error || 'Please try again');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleInputFocus = (field) => {
     setActiveField(field);

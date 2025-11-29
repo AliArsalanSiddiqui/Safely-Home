@@ -16,3 +16,6 @@ safely-home-backend/dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+migrate-rides.js
+safely-home-backend/migrate-rides.js

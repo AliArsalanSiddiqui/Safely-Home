@@ -772,6 +772,7 @@ app.post('/api/ride/cancel', authenticateToken, async (req, res) => {
     
     console.log('⚠️ Ride cancelled and moved to history:', rideId);
     
+    // Notify both rider and driver
     io.to(ride.riderId.toString()).emit('rideCancelled', { rideId: ride._id });
     if (ride.driverId) {
       io.to(ride.driverId.toString()).emit('rideCancelled', { rideId: ride._id });
