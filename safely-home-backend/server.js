@@ -591,6 +591,48 @@ app.get('/api/rides/history', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+// ============================================
+// UPDATED GET AVAILABLE RIDES - ONLY SHOW ACTIVE REQUESTED
+// ============================================
+
+app.get('/api/rides/available', authenticateToken, async (req, res) => {
+  try {
+    const driver = await User.findById(req.user.userId);
+    if (!driver || driver.userType !== 'driver') {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    const rides = await Ride.find({ 
+      status: 'requested',
+      active: true,
+      driverId: { $exists: false }
+    })
+    .populate('riderId', 'name phone gender')
+    .sort({ createdAt: -1 })
+    .limit(10);
+
+    console.log(`📋 ${rides.length} available rides for driver: ${driver.name}`);
+
+    res.json({ 
+      success: true, 
+      rides: rides.map(ride => ({
+        id: ride._id,
+        riderName: ride.riderId?.name,
+        riderPhone: ride.riderId?.phone,
+        riderGender: ride.riderId?.gender,
+        pickup: ride.pickup.address,
+        destination: ride.destination.address,
+        fare: ride.fare,
+        distance: ride.distance,
+        estimatedTime: ride.estimatedTime,
+        createdAt: ride.createdAt
+      }))
+    });
+  } catch (error) {
+    console.error('❌ Get available rides error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 app.get('/api/admin/active-rides', authenticateToken, async (req, res) => {
   try {
     const activeRides = await Ride.find({ active: true })
@@ -766,48 +808,7 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-// ============================================
-// UPDATED GET AVAILABLE RIDES - ONLY SHOW ACTIVE REQUESTED
-// ============================================
 
-app.get('/api/rides/available', authenticateToken, async (req, res) => {
-  try {
-    const driver = await User.findById(req.user.userId);
-    if (!driver || driver.userType !== 'driver') {
-      return res.status(403).json({ success: false, error: 'Access denied' });
-    }
-
-    const rides = await Ride.find({ 
-      status: 'requested',
-      active: true,
-      driverId: { $exists: false }
-    })
-    .populate('riderId', 'name phone gender')
-    .sort({ createdAt: -1 })
-    .limit(10);
-
-    console.log(`📋 ${rides.length} available rides for driver: ${driver.name}`);
-
-    res.json({ 
-      success: true, 
-      rides: rides.map(ride => ({
-        id: ride._id,
-        riderName: ride.riderId?.name,
-        riderPhone: ride.riderId?.phone,
-        riderGender: ride.riderId?.gender,
-        pickup: ride.pickup.address,
-        destination: ride.destination.address,
-        fare: ride.fare,
-        distance: ride.distance,
-        estimatedTime: ride.estimatedTime,
-        createdAt: ride.createdAt
-      }))
-    });
-  } catch (error) {
-    console.error('❌ Get available rides error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 // ============================================
 // UPDATED ACCEPT RIDE - REMOVE FROM AVAILABLE
 // ============================================
