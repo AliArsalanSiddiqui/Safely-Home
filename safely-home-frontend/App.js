@@ -22,6 +22,11 @@ import ReportIssueScreen from './screens/ReportIssueScreen';
 import RatingScreen from './screens/RatingScreen';
 import DriverHomeScreen from './screens/DriverHomeScreen';
 import RideHistoryScreen from './screens/RideHistoryScreen';
+import ProfileScreen from './screens/ProfileScreen';
+import SettingsScreen from './screens/SettingsScreen';
+import NotificationsScreen from './screens/NotificationsScreen';
+import SupportScreen from './screens/SupportScreen';
+import EarningsScreen from './screens/EarningsScreen';
 
 const Stack = createStackNavigator();
 
@@ -150,6 +155,12 @@ export default function App() {
           {/* Driver Screens */}
           <Stack.Screen name="DriverHome" component={DriverHomeScreen} />
           <Stack.Screen name="DriverTracking" component={DriverTrackingScreen} />
+          <Stack.Screen name="Earnings" component={EarningsScreen} />
+          {/* User Profile & App Settings */}
+          <Stack.Screen name="Profile" component={ProfileScreen} />
+          <Stack.Screen name="Settings" component={SettingsScreen} />
+          <Stack.Screen name="Notifications" component={NotificationsScreen} />
+          <Stack.Screen name="Support" component={SupportScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </>

@@ -1,4 +1,4 @@
-// server.js
+// server.js - PART 1: Configuration & Schemas
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
@@ -9,13 +9,26 @@ const bcrypt = require('bcryptjs');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 const app = express();
 const server = http.createServer(app);
 
-// -----------------------------
-// Config & env checks
-// -----------------------------
+// ============================================
+// CLOUDINARY CONFIGURATION
+// ============================================
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+console.log('☁️ Cloudinary configured:', process.env.CLOUDINARY_CLOUD_NAME);
+
+// ============================================
+// CONFIG & ENV CHECKS
+// ============================================
 const JWT_SECRET = process.env.JWT_SECRET;
 const MONGODB_URI = process.env.MONGODB_URI;
 const PORT = process.env.PORT || 10000;
@@ -33,16 +46,16 @@ if (!JWT_SECRET) {
 
 console.log(`ℹ️  Environment: ${NODE_ENV}`);
 
-// -----------------------------
-// Allowed origins (MUST be defined BEFORE using it with Socket.IO / CORS)
-// -----------------------------
+// ============================================
+// ALLOWED ORIGINS
+// ============================================
 const allowedOrigins = process.env.NODE_ENV === 'production'
   ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
   : '*';
 
-// -----------------------------
-// Socket.IO initialization (uses allowedOrigins)
-// -----------------------------
+// ============================================
+// SOCKET.IO INITIALIZATION
+// ============================================
 const io = socketIo(server, { 
   cors: { 
     origin: true,
@@ -54,9 +67,9 @@ const io = socketIo(server, {
   pingInterval: 25000
 });
 
-// -----------------------------
-// Middleware
-// -----------------------------
+// ============================================
+// MIDDLEWARE
+// ============================================
 app.use(cors({
   origin: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -64,11 +77,10 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use('/uploads', express.static('uploads'));
 
-// -----------------------------
-// MongoDB connection
-// -----------------------------
+// ============================================
+// MONGODB CONNECTION
+// ============================================
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ MongoDB Atlas Connected Successfully'))
   .catch(err => console.error('❌ MongoDB Connection Error:', err));
@@ -77,7 +89,7 @@ mongoose.connect(MONGODB_URI)
 // SCHEMAS
 // ============================================
 
-// User Schema
+// User Schema - UPDATED with Cloudinary URLs
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
@@ -87,7 +99,11 @@ const userSchema = new mongoose.Schema({
   genderPreference: String,
   gender: String,
   rating: { type: Number, default: 5.0 },
-  faceData: String,
+  
+  // ✅ NEW: Cloudinary image URLs instead of local files
+  faceData: String, // Cloudinary URL for face image
+  profilePicture: String, // Cloudinary URL for profile picture (same as faceData initially)
+  
   vehicleInfo: {
     model: String,
     licensePlate: String,
@@ -98,16 +114,14 @@ const userSchema = new mongoose.Schema({
     coordinates: { type: [Number], default: [0, 0] }
   },
   isOnline: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
 });
 
 userSchema.index({ location: '2dsphere' });
 const User = mongoose.model('User', userSchema);
 
-// ============================================
-// UPDATE RIDE SCHEMA - ADD ACTIVE FIELD
-// ============================================
-
+// Ride Schema
 const rideSchema = new mongoose.Schema({
   riderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -127,7 +141,7 @@ const rideSchema = new mongoose.Schema({
     enum: ['requested', 'accepted', 'started', 'completed', 'cancelled'],
     default: 'requested'
   },
-  active: { type: Boolean, default: true }, // ✅ CRITICAL
+  active: { type: Boolean, default: true },
   feedback: {
     rating: Number,
     tags: [Number],
@@ -140,7 +154,7 @@ const rideSchema = new mongoose.Schema({
 
 const Ride = mongoose.model('Ride', rideSchema);
 
-// NEW: Message Schema for MongoDB
+// Message Schema
 const messageSchema = new mongoose.Schema({
   rideId: { type: mongoose.Schema.Types.ObjectId, ref: 'Ride', required: true },
   senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -154,17 +168,20 @@ messageSchema.index({ timestamp: 1 }, { expireAfterSeconds: 2592000 }); // 30-da
 const Message = mongoose.model('Message', messageSchema);
 
 // ============================================
-// FILE UPLOAD CONFIG
+// CLOUDINARY FILE UPLOAD CONFIG
 // ============================================
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'safely-home',
+    allowed_formats: ['jpg', 'jpeg', 'png'],
+    transformation: [{ width: 500, height: 500, crop: 'limit' }]
+  }
 });
 
 const upload = multer({ 
   storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
 // ============================================
@@ -173,7 +190,7 @@ const upload = multer({
 
 // Calculate distance using Haversine formula
 function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Earth's radius in km
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = 
@@ -181,23 +198,23 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLon/2) * Math.sin(dLon/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c; // Distance in km
+  return R * c;
 }
 
-// Calculate fare: 20 pkr per km + base fare
+// Calculate fare
 function calculateFare(distanceKm) {
-  const baseFare = 50; // Base fare
+  const baseFare = 50;
   const perKmRate = 20;
   const fare = baseFare + (distanceKm * perKmRate);
-  return Math.max(fare, 50); // Minimum fare 50 pkr
+  return Math.max(fare, 50);
 }
 
-// Calculate ETA: Average speed 40 km/h in city
+// Calculate ETA
 function calculateETA(distanceKm) {
   const avgSpeedKmh = 40;
   const timeHours = distanceKm / avgSpeedKmh;
   const timeMinutes = Math.ceil(timeHours * 60);
-  return Math.max(timeMinutes, 2); // Minimum 2 minutes
+  return Math.max(timeMinutes, 2);
 }
 
 // Email validation
@@ -243,7 +260,7 @@ function validatePassword(password) {
 const authenticateToken = (req, res, next) => {
   const authHeader = req.header('Authorization');
   const token = authHeader && authHeader.replace('Bearer ', '');
-  console.log(token);
+  
   if (!token) {
     return res.status(401).json({ error: 'Access denied. No token provided.' });
   }
@@ -258,10 +275,33 @@ const authenticateToken = (req, res, next) => {
   }
 };
 
+// Export for Part 2
+module.exports = {
+  app,
+  server,
+  io,
+  User,
+  Ride,
+  Message,
+  upload,
+  cloudinary,
+  authenticateToken,
+  calculateDistance,
+  calculateFare,
+  calculateETA,
+  isValidEmail,
+  validatePassword,
+  JWT_SECRET,
+  PORT,
+  NODE_ENV
+};
+
+// server.js - PART 2: Authentication & Profile Routes
 // ============================================
-// TEST ROUTE
+// This file continues from Part 1
 // ============================================
 
+// TEST ROUTE
 app.get('/api/test', (req, res) => {
   res.json({ success: true, message: 'Backend is working!', timestamp: new Date() });
 });
@@ -270,7 +310,7 @@ app.get('/api/test', (req, res) => {
 // AUTH ROUTES
 // ============================================
 
-// Register (UPDATED with email & password validation)
+// Register - UPDATED with Cloudinary
 app.post('/api/register', upload.single('faceImage'), async (req, res) => {
   try {
     console.log('📝 Registration Request Body:', req.body);
@@ -286,21 +326,18 @@ app.post('/api/register', upload.single('faceImage'), async (req, res) => {
       });
     }
 
-    // Validate email format
     if (!isValidEmail(email)) {
       return res.status(400).json({ 
         success: false,
-        error: 'Invalid email format. Email must contain @ symbol and valid domain'
+        error: 'Invalid email format'
       });
     }
 
-    // Validate password strength
     const passwordValidation = validatePassword(password);
     if (!passwordValidation.isValid) {
       return res.status(400).json({ 
         success: false,
         error: 'Password does not meet security requirements',
-        strength: passwordValidation.strength,
         details: passwordValidation.errors
       });
     }
@@ -324,6 +361,9 @@ app.post('/api/register', upload.single('faceImage'), async (req, res) => {
       }
     }
 
+    // ✅ Store Cloudinary URL
+    const imageUrl = req.file ? req.file.path : null;
+    
     const user = new User({
       email,
       password: hashedPassword,
@@ -332,7 +372,8 @@ app.post('/api/register', upload.single('faceImage'), async (req, res) => {
       userType,
       gender: gender || (userType === 'driver' ? 'male' : null),
       vehicleInfo: userType === 'driver' ? parsedVehicleInfo : undefined,
-      faceData: req.file ? req.file.filename : null,
+      faceData: imageUrl, // Cloudinary URL
+      profilePicture: imageUrl, // Same as faceData initially
       location: { type: 'Point', coordinates: [0, 0] }
     });
 
@@ -348,13 +389,14 @@ app.post('/api/register', upload.single('faceImage'), async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful! Please login.',
+      message: 'Registration successful!',
       token,
       user: {
         id: user._id,
         email: user.email,
         name: user.name,
-        userType: user.userType
+        userType: user.userType,
+        profilePicture: user.profilePicture
       }
     });
   } catch (error) {
@@ -367,11 +409,9 @@ app.post('/api/register', upload.single('faceImage'), async (req, res) => {
   }
 });
 
-// Login (UPDATED with email validation)
+// Login
 app.post('/api/login', async (req, res) => {
   try {
-    console.log('🔐 Login Request:', req.body);
-
     const { email, password } = req.body;
     
     if (!email || !password) {
@@ -381,17 +421,15 @@ app.post('/api/login', async (req, res) => {
       });
     }
 
-    // Validate email format
     if (!isValidEmail(email)) {
       return res.status(400).json({ 
         success: false,
-        error: 'Invalid email format. Email must contain @ symbol and valid domain'
+        error: 'Invalid email format'
       });
     }
 
     const user = await User.findOne({ email });
     if (!user) {
-      console.log('❌ User not found:', email);
       return res.status(400).json({ 
         success: false,
         error: 'Invalid email or password' 
@@ -400,7 +438,6 @@ app.post('/api/login', async (req, res) => {
 
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      console.log('❌ Invalid password for:', email);
       return res.status(400).json({ 
         success: false,
         error: 'Invalid email or password' 
@@ -426,7 +463,8 @@ app.post('/api/login', async (req, res) => {
         userType: user.userType,
         genderPreference: user.genderPreference,
         gender: user.gender,
-        vehicleInfo: user.vehicleInfo
+        vehicleInfo: user.vehicleInfo,
+        profilePicture: user.profilePicture
       }
     });
   } catch (error) {
@@ -436,6 +474,126 @@ app.post('/api/login', async (req, res) => {
       error: 'Login failed',
       details: error.message 
     });
+  }
+});
+
+// ============================================
+// PROFILE ROUTES - NEW
+// ============================================
+
+// Get Profile
+app.get('/api/profile', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // Get ride statistics
+    const totalRides = await Ride.countDocuments({
+      [user.userType === 'rider' ? 'riderId' : 'driverId']: user._id,
+      status: 'completed'
+    });
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        gender: user.gender,
+        userType: user.userType,
+        genderPreference: user.genderPreference,
+        profilePicture: user.profilePicture,
+        faceData: user.faceData,
+        vehicleInfo: user.vehicleInfo,
+        rating: user.rating,
+        totalRides: totalRides,
+        createdAt: user.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('❌ Get profile error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Update Profile - WITH FACE VERIFICATION
+app.put('/api/profile', authenticateToken, upload.single('profilePicture'), async (req, res) => {
+  try {
+    const { name, phone, email, vehicleInfo } = req.body;
+    const userId = req.user.userId;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // Update basic info
+    if (name) user.name = name;
+    if (phone) user.phone = phone;
+    if (email && email !== user.email) {
+      // Check if email already exists
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Email already in use' 
+        });
+      }
+      user.email = email;
+    }
+
+    // Update vehicle info for drivers
+    if (vehicleInfo && user.userType === 'driver') {
+      try {
+        const parsed = typeof vehicleInfo === 'string' ? JSON.parse(vehicleInfo) : vehicleInfo;
+        user.vehicleInfo = parsed;
+      } catch (e) {
+        console.error('Error parsing vehicleInfo:', e);
+      }
+    }
+
+    // ✅ Update profile picture if provided
+    if (req.file) {
+      // Delete old image from Cloudinary if exists
+      if (user.profilePicture) {
+        try {
+          const publicId = user.profilePicture.split('/').pop().split('.')[0];
+          await cloudinary.uploader.destroy(`safely-home/${publicId}`);
+        } catch (err) {
+          console.error('Error deleting old image:', err);
+        }
+      }
+      
+      user.profilePicture = req.file.path; // New Cloudinary URL
+    }
+
+    user.updatedAt = new Date();
+    await user.save();
+
+    console.log('✅ Profile updated:', user.email);
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        gender: user.gender,
+        userType: user.userType,
+        profilePicture: user.profilePicture,
+        vehicleInfo: user.vehicleInfo,
+        rating: user.rating
+      }
+    });
+  } catch (error) {
+    console.error('❌ Update profile error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -481,8 +639,6 @@ app.post('/api/location', authenticateToken, async (req, res) => {
       { new: true, runValidators: true }
     );
 
-    console.log('📍 Location updated:', updatedUser.email, [longitude, latitude]);
-
     res.json({ success: true, location: updatedUser.location });
   } catch (error) {
     console.error('❌ Location update error:', error);
@@ -490,6 +646,7 @@ app.post('/api/location', authenticateToken, async (req, res) => {
   }
 });
 
+// Continue to Part 3 for ride routes...
 // ============================================
 // RIDE ROUTES
 // ============================================
@@ -502,8 +659,6 @@ app.get('/api/rides/active', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     const userType = req.user.userType;
-
-    console.log('🔍 Checking active ride for:', userId);
 
     let query = {
       status: { $in: ['requested', 'accepted', 'started'] },
@@ -518,14 +673,12 @@ app.get('/api/rides/active', authenticateToken, async (req, res) => {
 
     const activeRide = await Ride.findOne(query)
       .populate('riderId', 'name phone gender')
-      .populate('driverId', 'name phone rating vehicleInfo gender')
+      .populate('driverId', 'name phone rating vehicleInfo gender profilePicture')
       .sort({ createdAt: -1 });
 
     if (activeRide) {
-      console.log('✅ Active ride found:', activeRide._id);
       res.json({ success: true, activeRide });
     } else {
-      console.log('ℹ️ No active ride');
       res.json({ success: true, activeRide: null });
     }
   } catch (error) {
@@ -533,6 +686,7 @@ app.get('/api/rides/active', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
 // ============================================
 // RIDE HISTORY ENDPOINT (NEW)
 // ============================================
@@ -542,15 +696,8 @@ app.get('/api/rides/history', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     const userType = req.user.userType;
 
-    console.log('📜 Fetching ride history for:', {
-      userId: userId,
-      userType: userType
-    });
-
-    // ✅ Convert to ObjectId (mongoose is already imported at top)
     const userObjectId = new mongoose.Types.ObjectId(userId);
 
-    // ✅ Build query based on user type
     let query = {
       status: { $in: ['completed', 'cancelled'] },
       active: false
@@ -562,28 +709,11 @@ app.get('/api/rides/history', authenticateToken, async (req, res) => {
       query.driverId = userObjectId;
     }
 
-    console.log('🔍 Query:', JSON.stringify(query, null, 2));
-
-    // ✅ Fetch rides
     const rides = await Ride.find(query)
-      .populate('riderId', 'name phone gender')
-      .populate('driverId', 'name phone rating vehicleInfo gender')
+      .populate('riderId', 'name phone gender profilePicture')
+      .populate('driverId', 'name phone rating vehicleInfo gender profilePicture')
       .sort({ createdAt: -1 })
       .limit(100);
-
-    console.log(`✅ Found ${rides.length} historical rides`);
-
-    // ✅ Log first ride if exists (for debugging)
-    if (rides.length > 0) {
-      console.log('📋 Sample ride:', {
-        id: rides[0]._id,
-        status: rides[0].status,
-        active: rides[0].active,
-        riderId: rides[0].riderId?._id,
-        driverId: rides[0].driverId?._id,
-        createdAt: rides[0].createdAt
-      });
-    }
 
     res.json({ success: true, rides });
   } catch (error) {
@@ -840,11 +970,10 @@ app.post('/api/ride/accept', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Ride already accepted' });
     }
 
-    // ✅ UPDATE: Mark as accepted and remove from available
     ride.driverId = req.user.userId;
     ride.status = 'accepted';
     ride.acceptedAt = new Date();
-    ride.active = true; // Keep active until completed
+    ride.active = true;
     await ride.save();
 
     const driver = await User.findById(req.user.userId);
@@ -854,9 +983,6 @@ app.post('/api/ride/accept', authenticateToken, async (req, res) => {
       status: 'completed'
     });
     
-    console.log('✅ Ride accepted by driver:', driver.name);
-
-    // Emit to rider
     io.to(ride.riderId._id.toString()).emit('driverAccepted', {
       rideId: ride._id,
       driver: {
@@ -866,28 +992,14 @@ app.post('/api/ride/accept', authenticateToken, async (req, res) => {
         rating: driver.rating || 0,
         totalRides: totalRides,
         vehicleInfo: driver.vehicleInfo,
-        gender: driver.gender
+        gender: driver.gender,
+        profilePicture: driver.profilePicture
       },
-      pickup: ride.pickup?.address || 'Pickup location',
-      destination: ride.destination?.address || 'Destination'
+      pickup: ride.pickup?.address,
+      destination: ride.destination?.address
     });
 
-    // Emit to driver
-    io.to(driver._id.toString()).emit('rideAcceptedByYou', {
-      rideId: ride._id,
-      rider: {
-        name: ride.riderId.name,
-        phone: ride.riderId.phone
-      },
-      pickup: ride.pickup?.address || 'Pickup location',
-      destination: ride.destination?.address || 'Destination'
-    });
-
-    res.json({ 
-      success: true, 
-      ride,
-      message: 'Ride accepted successfully!'
-    });
+    res.json({ success: true, ride });
   } catch (error) {
     console.error('❌ Ride accept error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -1060,8 +1172,8 @@ app.post('/api/ride/rate', authenticateToken, async (req, res) => {
 app.get('/api/rides/:rideId', authenticateToken, async (req, res) => {
   try {
     const ride = await Ride.findById(req.params.rideId)
-      .populate('riderId', 'name phone')
-      .populate('driverId', 'name phone rating vehicleInfo');
+      .populate('riderId', 'name phone profilePicture')
+      .populate('driverId', 'name phone rating vehicleInfo profilePicture');
     
     if (!ride) {
       return res.status(404).json({ success: false, error: 'Ride not found' });
