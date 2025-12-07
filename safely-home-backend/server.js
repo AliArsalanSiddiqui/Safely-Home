@@ -741,20 +741,75 @@ app.get('/api/rides/available', authenticateToken, async (req, res) => {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
+    console.log('🔍 Driver fetching rides:', {
+      driverId: driver._id,
+      driverName: driver.name,
+      driverGender: driver.gender
+    });
+
+    // ✅ FIX: Find rides where rider wants THIS driver's gender
     const rides = await Ride.find({ 
       status: 'requested',
       active: true,
       driverId: { $exists: false }
     })
-    .populate('riderId', 'name phone gender')
+    .populate('riderId', 'name phone gender genderPreference')
     .sort({ createdAt: -1 })
-    .limit(10);
+    .limit(20); // Get more, we'll filter
 
-    console.log(`📋 ${rides.length} available rides for driver: ${driver.name}`);
+    // ✅ FIX: Filter rides based on gender matching rules
+    const matchingRides = rides.filter(ride => {
+      if (!ride.riderId) return false;
+
+      const riderGender = ride.riderId.gender;
+      const riderPref = ride.riderId.genderPreference;
+      const driverGender = driver.gender;
+
+      console.log('🔍 Checking ride:', {
+        rideId: ride._id.toString().slice(-6),
+        riderGender,
+        riderPref,
+        driverGender
+      });
+
+      // RULE 1: Male rider can ONLY get male drivers
+      if (riderGender === 'male') {
+        const match = driverGender === 'male';
+        console.log(`  ${match ? '✅' : '❌'} Male rider rule: ${match}`);
+        return match;
+      }
+
+      // RULE 2: Female rider with specific preference
+      if (riderGender === 'female') {
+        // Female rider wants female drivers only
+        if (riderPref === 'female') {
+          const match = driverGender === 'female';
+          console.log(`  ${match ? '✅' : '❌'} Female rider wants female: ${match}`);
+          return match;
+        }
+        
+        // Female rider wants male drivers only
+        if (riderPref === 'male') {
+          const match = driverGender === 'male';
+          console.log(`  ${match ? '✅' : '❌'} Female rider wants male: ${match}`);
+          return match;
+        }
+        
+        // Female rider wants any driver
+        console.log('  ✅ Female rider wants any driver: true');
+        return true;
+      }
+
+      // Default: If no gender info, don't show
+      console.log('  ❌ No gender info, excluding');
+      return false;
+    });
+
+    console.log(`📋 Filtered ${matchingRides.length}/${rides.length} rides for ${driver.name} (${driver.gender})`);
 
     res.json({ 
       success: true, 
-      rides: rides.map(ride => ({
+      rides: matchingRides.slice(0, 10).map(ride => ({
         id: ride._id,
         riderName: ride.riderId?.name,
         riderPhone: ride.riderId?.phone,
@@ -858,6 +913,37 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Rider not found' });
     }
 
+    // ✅ FIX: Validate gender and preference
+    if (!rider.gender) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Gender not set. Please update your profile.' 
+      });
+    }
+
+    // ✅ FIX: Male riders MUST have 'male' preference (auto-set if missing)
+    if (rider.gender === 'male') {
+      if (!rider.genderPreference) {
+        rider.genderPreference = 'male';
+        await rider.save();
+        console.log('✅ Auto-set male rider preference to male');
+      } else if (rider.genderPreference !== 'male') {
+        // Force it to male for security
+        rider.genderPreference = 'male';
+        await rider.save();
+        console.log('⚠️ Forced male rider preference to male (was:', rider.genderPreference, ')');
+      }
+    }
+
+    // ✅ FIX: Female riders MUST have preference set
+    if (rider.gender === 'female' && !rider.genderPreference) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Please select your driver preference before booking.',
+        requiresGenderPreference: true
+      });
+    }
+
     console.log('📋 Rider info:', {
       name: rider.name,
       gender: rider.gender,
@@ -900,7 +986,7 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
 
     await ride.save();
 
-    // ✅ FIXED: Proper gender-based filtering
+    // ✅ CORRECT: Proper gender-based filtering
     let driverFilter = {
       userType: 'driver',
       isOnline: true
@@ -962,6 +1048,7 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
   }
 });
 
+
 // ============================================
 // UPDATED ACCEPT RIDE - REMOVE FROM AVAILABLE
 // ============================================
@@ -979,13 +1066,59 @@ app.post('/api/ride/accept', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Ride already accepted' });
     }
 
+    const driver = await User.findById(req.user.userId);
+    if (!driver || driver.userType !== 'driver') {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    // ✅ FIX: Validate gender match before accepting
+    const rider = ride.riderId;
+    const riderGender = rider.gender;
+    const riderPref = rider.genderPreference;
+    const driverGender = driver.gender;
+
+    console.log('🔍 Validating ride acceptance:', {
+      rideId: ride._id.toString().slice(-6),
+      riderGender,
+      riderPref,
+      driverGender
+    });
+
+    // RULE 1: Male rider can ONLY have male driver
+    if (riderGender === 'male' && driverGender !== 'male') {
+      console.log('❌ BLOCKED: Male rider cannot have non-male driver');
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Gender mismatch: This ride requires a male driver' 
+      });
+    }
+
+    // RULE 2: Female rider with preference
+    if (riderGender === 'female') {
+      if (riderPref === 'female' && driverGender !== 'female') {
+        console.log('❌ BLOCKED: Female rider wants female driver only');
+        return res.status(403).json({ 
+          success: false, 
+          error: 'Gender mismatch: Rider requested female driver only' 
+        });
+      }
+      
+      if (riderPref === 'male' && driverGender !== 'male') {
+        console.log('❌ BLOCKED: Female rider wants male driver only');
+        return res.status(403).json({ 
+          success: false, 
+          error: 'Gender mismatch: Rider requested male driver only' 
+        });
+      }
+    }
+
+    console.log('✅ Gender validation passed');
+
     ride.driverId = req.user.userId;
     ride.status = 'accepted';
     ride.acceptedAt = new Date();
     ride.active = true;
     await ride.save();
-
-    const driver = await User.findById(req.user.userId);
     
     const totalRides = await Ride.countDocuments({
       driverId: req.user.userId,
