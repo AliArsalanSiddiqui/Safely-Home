@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.text,
+    color: COLORS.accent,
     opacity: 0.7,
   },
   destructiveButtonText: {

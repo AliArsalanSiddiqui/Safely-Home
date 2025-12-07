@@ -1,23 +1,80 @@
+// safely-home-frontend/screens/DriverRegistrationScreen.js
+// ✅ ENHANCED: Custom Alerts + Show Password + Real-time Password Strength + Better Error Handling
+
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import { 
+  View, Text, TextInput, TouchableOpacity, StyleSheet, 
+  ScrollView, Image, ActivityIndicator, KeyboardAvoidingView, Platform 
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../config';
 import { register } from '../services/api';
+import { showAlert } from '../components/CustomAlert';
 
 export default function DriverRegistrationScreen({ navigation }) {
   const [formData, setFormData] = useState({
     name: '', email: '', phone: '', password: '', confirmPassword: '',
     licensePlate: '', vehicleModel: '', faceImage: null,
-    gender: '' // NEW
+    gender: ''
   });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState({ strength: '', color: '', text: '' });
 
-  const updateField = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
+  const updateField = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    
+    if (field === 'password') {
+      checkPasswordStrength(value);
+    }
+  };
+
+  const checkPasswordStrength = (password) => {
+    if (!password) {
+      setPasswordStrength({ strength: '', color: '', text: '' });
+      return;
+    }
+
+    const minLength = password.length >= 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumbers = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+    const score = [minLength, hasUpperCase, hasLowerCase, hasNumbers, hasSpecialChar]
+      .filter(Boolean).length;
+
+    if (score === 5) {
+      setPasswordStrength({ 
+        strength: 'Strong', 
+        color: '#4CAF50', 
+        text: '✓ Strong password' 
+      });
+    } else if (score >= 3) {
+      setPasswordStrength({ 
+        strength: 'Medium', 
+        color: '#FF9800', 
+        text: '⚠ Medium strength - add more complexity' 
+      });
+    } else {
+      setPasswordStrength({ 
+        strength: 'Weak', 
+        color: '#F44336', 
+        text: '✕ Weak password - needs improvement' 
+      });
+    }
+  };
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera permission is required');
+      showAlert(
+        'Permission Required',
+        'Camera permission is required for face verification',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
       return;
     }
 
@@ -25,7 +82,7 @@ export default function DriverRegistrationScreen({ navigation }) {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.5,
+      quality: 0.7,
     });
 
     if (!result.canceled) {
@@ -33,31 +90,178 @@ export default function DriverRegistrationScreen({ navigation }) {
     }
   };
 
-  const handleRegister = async () => {
-    if (!formData.name || !formData.email || !formData.phone || !formData.password || !formData.licensePlate || !formData.vehicleModel || !formData.gender) {
-      Alert.alert('Error', 'Please fill in all fields including gender');
-      return;
+  const validateForm = () => {
+    // Name validation
+    if (!formData.name.trim()) {
+      showAlert(
+        'Missing Information',
+        'Please enter your full name',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
+      return false;
     }
-    if (formData.password !== formData.confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
+
+    if (formData.name.trim().length < 3) {
+      showAlert(
+        'Invalid Name',
+        'Name must be at least 3 characters long',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
+      return false;
     }
+
+    // Email validation
+    if (!formData.email.trim()) {
+      showAlert(
+        'Missing Information',
+        'Please enter your email address',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
+      return false;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email.trim())) {
+      showAlert(
+        'Invalid Email',
+        'Please enter a valid email address',
+        [{ text: 'OK' }],
+        { type: 'error' }
+      );
+      return false;
+    }
+
+    // Phone validation
+    if (!formData.phone.trim()) {
+      showAlert(
+        'Missing Information',
+        'Please enter your phone number',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
+      return false;
+    }
+
+    if (formData.phone.trim().length < 10) {
+      showAlert(
+        'Invalid Phone',
+        'Please enter a valid phone number (at least 10 digits)',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
+      return false;
+    }
+
+    // Gender validation
+    if (!formData.gender) {
+      showAlert(
+        'Missing Information',
+        'Please select your gender',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
+      return false;
+    }
+
+    // License validation
+    if (!formData.licensePlate.trim()) {
+      showAlert(
+        'Missing Information',
+        'Please enter your driver license number',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
+      return false;
+    }
+
+    // Vehicle validation
+    if (!formData.vehicleModel.trim()) {
+      showAlert(
+        'Missing Information',
+        'Please enter your vehicle model',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
+      return false;
+    }
+
+    // Face image validation
     if (!formData.faceImage) {
-      Alert.alert('Error', 'Please take a face photo for verification');
-      return;
+      showAlert(
+        'Face Verification Required',
+        'Please take a photo for face verification. This helps ensure passenger safety.',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
+      return false;
     }
+
+    // Password validation
+    if (!formData.password) {
+      showAlert(
+        'Missing Information',
+        'Please enter a password',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
+      return false;
+    }
+
+    // Check password strength
+    const minLength = formData.password.length >= 8;
+    const hasUpperCase = /[A-Z]/.test(formData.password);
+    const hasLowerCase = /[a-z]/.test(formData.password);
+    const hasNumbers = /\d/.test(formData.password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(formData.password);
+
+    const errors = [];
+    if (!minLength) errors.push('• At least 8 characters');
+    if (!hasUpperCase) errors.push('• One uppercase letter (A-Z)');
+    if (!hasLowerCase) errors.push('• One lowercase letter (a-z)');
+    if (!hasNumbers) errors.push('• One number (0-9)');
+    if (!hasSpecialChar) errors.push('• One special character (!@#$%...)');
+
+    if (errors.length > 0) {
+      showAlert(
+        'Weak Password',
+        `Your password must contain:\n\n${errors.join('\n')}`,
+        [{ text: 'OK' }],
+        { type: 'error' }
+      );
+      return false;
+    }
+
+    // Confirm password
+    if (formData.password !== formData.confirmPassword) {
+      showAlert(
+        'Passwords Don\'t Match',
+        'The passwords you entered do not match. Please try again.',
+        [{ text: 'OK' }],
+        { type: 'error' }
+      );
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleRegister = async () => {
+    if (!validateForm()) return;
 
     setLoading(true);
     try {
       const userData = {
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone.trim(),
         password: formData.password,
         gender: formData.gender,
         vehicleInfo: {
-          licensePlate: formData.licensePlate,
-          model: formData.vehicleModel,
+          licensePlate: formData.licensePlate.trim(),
+          model: formData.vehicleModel.trim(),
           color: 'Black'
         },
         faceImage: formData.faceImage
@@ -66,12 +270,57 @@ export default function DriverRegistrationScreen({ navigation }) {
       const response = await register(userData, 'driver');
       
       if (response.success) {
-        Alert.alert('Success', 'Registration successful!', [
-          { text: 'OK', onPress: () => navigation.replace('Login') }
-        ]);
+        showAlert(
+          'Registration Successful! 🎉',
+          `Welcome to Safely Home, ${userData.name}! Your driver account has been created successfully.`,
+          [
+            { 
+              text: 'Start Driving', 
+              onPress: () => navigation.replace('Login') 
+            }
+          ],
+          { type: 'success', cancelable: false }
+        );
       }
     } catch (error) {
-      Alert.alert('Registration Failed', error.response?.data?.error || 'Please try again');
+      console.error('Registration error:', error);
+      
+      if (error.response?.data?.error?.includes('email already exists')) {
+        showAlert(
+          'Email Already Registered',
+          'An account with this email already exists. Would you like to login instead?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Login', 
+              onPress: () => navigation.navigate('Login') 
+            }
+          ],
+          { type: 'warning' }
+        );
+      } else if (error.response?.data?.details) {
+        const details = error.response.data.details;
+        showAlert(
+          'Registration Failed',
+          `Please fix the following:\n\n${details.join('\n')}`,
+          [{ text: 'OK' }],
+          { type: 'error' }
+        );
+      } else if (error.customError === "Backend Inactive") {
+        showAlert(
+          'Server Unavailable',
+          'The server is currently not responding. Please try again in a few moments.',
+          [{ text: 'OK' }],
+          { type: 'error' }
+        );
+      } else {
+        showAlert(
+          'Registration Failed',
+          error.response?.data?.error || error.message || 'Unable to create account. Please try again.',
+          [{ text: 'OK' }],
+          { type: 'error' }
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -82,77 +331,237 @@ export default function DriverRegistrationScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => navigation.goBack()}
+          disabled={loading}
+        >
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
 
-        <Text style={styles.title}>Driver Registration</Text>
+        <Text style={styles.title}>Become a Driver</Text>
+        <Text style={styles.subtitle}>Start earning with Safely Home</Text>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Full Name</Text>
-          <TextInput style={styles.input} placeholder="Enter your full name" placeholderTextColor="#999" value={formData.name} onChangeText={(v) => updateField('name', v)} />
+          {/* Full Name */}
+          <Text style={styles.label}>Full Name *</Text>
+          <TextInput 
+            style={styles.input} 
+            placeholder="Enter your full name" 
+            placeholderTextColor="#999" 
+            value={formData.name} 
+            onChangeText={(v) => updateField('name', v)}
+            editable={!loading}
+          />
 
-          <Text style={styles.label}>Email</Text>
-          <TextInput style={styles.input} placeholder="Enter your email" placeholderTextColor="#999" value={formData.email} onChangeText={(v) => updateField('email', v)} keyboardType="email-address" autoCapitalize="none" />
+          {/* Email */}
+          <Text style={styles.label}>Email Address *</Text>
+          <TextInput 
+            style={styles.input} 
+            placeholder="Enter your email" 
+            placeholderTextColor="#999" 
+            value={formData.email} 
+            onChangeText={(v) => updateField('email', v)} 
+            keyboardType="email-address" 
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!loading}
+          />
 
-          <Text style={styles.label}>Phone Number</Text>
-          <TextInput style={styles.input} placeholder="Enter your phone number" placeholderTextColor="#999" value={formData.phone} onChangeText={(v) => updateField('phone', v)} keyboardType="phone-pad" />
+          {/* Phone */}
+          <Text style={styles.label}>Phone Number *</Text>
+          <TextInput 
+            style={styles.input} 
+            placeholder="Enter your phone number" 
+            placeholderTextColor="#999" 
+            value={formData.phone} 
+            onChangeText={(v) => updateField('phone', v)} 
+            keyboardType="phone-pad"
+            editable={!loading}
+          />
 
-          <Text style={styles.label}>Gender</Text>
+          {/* Gender */}
+          <Text style={styles.label}>Gender *</Text>
           <View style={styles.genderContainer}>
             <TouchableOpacity
               style={[styles.genderButton, formData.gender === 'male' && styles.genderButtonActive]}
               onPress={() => updateField('gender', 'male')}
+              disabled={loading}
+              activeOpacity={0.7}
             >
-              <Text style={[styles.genderText, formData.gender === 'male' && styles.genderTextActive]}>👨 Male </Text>
+              <Text style={[styles.genderText, formData.gender === 'male' && styles.genderTextActive]}>
+                👨 Male
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.genderButton, formData.gender === 'female' && styles.genderButtonActive]}
               onPress={() => updateField('gender', 'female')}
+              disabled={loading}
+              activeOpacity={0.7}
             >
-              <Text style={[styles.genderText, formData.gender === 'female' && styles.genderTextActive]}>👩 Female </Text>
+              <Text style={[styles.genderText, formData.gender === 'female' && styles.genderTextActive]}>
+                👩 Female
+              </Text>
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.label}>Driver License Number</Text>
-          <TextInput style={styles.input} placeholder="Enter your license number" placeholderTextColor="#999" value={formData.licensePlate} onChangeText={(v) => updateField('licensePlate', v)} />
+          {/* License */}
+          <Text style={styles.label}>Driver License Number *</Text>
+          <TextInput 
+            style={styles.input} 
+            placeholder="Enter your license number" 
+            placeholderTextColor="#999" 
+            value={formData.licensePlate} 
+            onChangeText={(v) => updateField('licensePlate', v)}
+            editable={!loading}
+          />
 
-          <Text style={styles.label}>Vehicle Model</Text>
-          <TextInput style={styles.input} placeholder="e.g. Toyota Camry 2020" placeholderTextColor="#999" value={formData.vehicleModel} onChangeText={(v) => updateField('vehicleModel', v)} />
+          {/* Vehicle */}
+          <Text style={styles.label}>Vehicle Model *</Text>
+          <TextInput 
+            style={styles.input} 
+            placeholder="e.g. Toyota Camry 2020" 
+            placeholderTextColor="#999" 
+            value={formData.vehicleModel} 
+            onChangeText={(v) => updateField('vehicleModel', v)}
+            editable={!loading}
+          />
 
-          <Text style={styles.label}>Password</Text>
-          <TextInput style={styles.input} placeholder="Enter password(min 6 characters)" placeholderTextColor="#999" value={formData.password} onChangeText={(v) => updateField('password', v)} secureTextEntry />
+          {/* Password */}
+          <Text style={styles.label}>Password *</Text>
+          <View style={styles.passwordContainer}>
+            <TextInput 
+              style={styles.passwordInput} 
+              placeholder="Create a strong password" 
+              placeholderTextColor="#999" 
+              value={formData.password} 
+              onChangeText={(v) => updateField('password', v)} 
+              secureTextEntry={!showPassword}
+              editable={!loading}
+            />
+            <TouchableOpacity 
+              style={styles.eyeButton}
+              onPress={() => setShowPassword(!showPassword)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+            </TouchableOpacity>
+          </View>
 
-          <Text style={styles.label}>Confirm Password</Text>
-          <TextInput style={styles.input} placeholder="Confirm your password" placeholderTextColor="#999" value={formData.confirmPassword} onChangeText={(v) => updateField('confirmPassword', v)} secureTextEntry />
+          {/* Password Strength */}
+          {formData.password && passwordStrength.strength && (
+            <View style={[styles.strengthIndicator, { backgroundColor: passwordStrength.color + '20' }]}>
+              <View style={styles.strengthBar}>
+                <View 
+                  style={[
+                    styles.strengthFill, 
+                    { 
+                      width: passwordStrength.strength === 'Weak' ? '33%' : 
+                            passwordStrength.strength === 'Medium' ? '66%' : '100%',
+                      backgroundColor: passwordStrength.color
+                    }
+                  ]} 
+                />
+              </View>
+              <Text style={[styles.strengthText, { color: passwordStrength.color }]}>
+                {passwordStrength.text}
+              </Text>
+            </View>
+          )}
 
+          {/* Requirements */}
+          <View style={styles.requirementsBox}>
+            <Text style={styles.requirementsTitle}>Password must contain:</Text>
+            <Text style={styles.requirementText}>• At least 8 characters</Text>
+            <Text style={styles.requirementText}>• One uppercase letter (A-Z)</Text>
+            <Text style={styles.requirementText}>• One lowercase letter (a-z)</Text>
+            <Text style={styles.requirementText}>• One number (0-9)</Text>
+            <Text style={styles.requirementText}>• One special character (!@#$%...)</Text>
+          </View>
+
+          {/* Confirm Password */}
+          <Text style={styles.label}>Confirm Password *</Text>
+          <View style={styles.passwordContainer}>
+            <TextInput 
+              style={styles.passwordInput} 
+              placeholder="Re-enter your password" 
+              placeholderTextColor="#999" 
+              value={formData.confirmPassword} 
+              onChangeText={(v) => updateField('confirmPassword', v)} 
+              secureTextEntry={!showConfirmPassword}
+              editable={!loading}
+            />
+            <TouchableOpacity 
+              style={styles.eyeButton}
+              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.eyeIcon}>{showConfirmPassword ? '👁️' : '👁️‍🗨️'}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Face Verification */}
           <View style={styles.faceVerification}>
-            <Text style={styles.label}>Face Recognition Verification</Text>
-            <TouchableOpacity style={styles.cameraButton} onPress={pickImage}>
+            <Text style={styles.label}>Face Verification *</Text>
+            <TouchableOpacity 
+              style={styles.cameraButton} 
+              onPress={pickImage}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
               {formData.faceImage ? (
                 <Image source={{ uri: formData.faceImage }} style={styles.faceImage} />
               ) : (
                 <>
                   <Text style={styles.cameraIcon}>📷</Text>
-                  <Text style={styles.cameraText}>Click to verify your identity </Text>
-                  <Text style={styles.cameraSubtext}>Start Face Recognition</Text>
+                  <Text style={styles.cameraText}>Take Face Photo</Text>
+                  <Text style={styles.cameraSubtext}>Required for driver verification</Text>
                 </>
               )}
             </TouchableOpacity>
+            {formData.faceImage && (
+              <TouchableOpacity 
+                style={styles.retakeButton}
+                onPress={pickImage}
+                disabled={loading}
+              >
+                <Text style={styles.retakeText}>📷 Retake Photo</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          <TouchableOpacity style={styles.registerButton} onPress={handleRegister} disabled={loading}>
-            {loading ? <ActivityIndicator color={COLORS.textDark} /> : <Text style={styles.registerButtonText}>Register</Text>}
+          {/* Register Button */}
+          <TouchableOpacity 
+            style={[styles.registerButton, loading && styles.registerButtonDisabled]} 
+            onPress={handleRegister} 
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color={COLORS.textDark} />
+            ) : (
+              <Text style={styles.registerButtonText}>Create Driver Account</Text>
+            )}
           </TouchableOpacity>
 
+          {/* Login Link */}
           <View style={styles.loginContainer}>
             <Text style={styles.loginText}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+            <TouchableOpacity 
+              onPress={() => navigation.navigate('Login')}
+              disabled={loading}
+            >
               <Text style={styles.loginLink}>Login</Text>
             </TouchableOpacity>
           </View>
         </View>
+
+        <View style={{ height: 30 }} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -163,24 +572,169 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 20, paddingTop: 60, paddingBottom: 40 },
   backButton: { marginBottom: 20 },
   backButtonText: { color: COLORS.accent, fontSize: 16, fontWeight: '600' },
-  title: { fontSize: 28, fontWeight: 'bold', color: COLORS.text, marginBottom: 30, textAlign: 'center' },
+  title: { 
+    fontSize: 28, 
+    fontWeight: 'bold', 
+    color: COLORS.text, 
+    marginBottom: 8, 
+    textAlign: 'center' 
+  },
+  subtitle: {
+    fontSize: 14,
+    color: COLORS.text,
+    opacity: 0.8,
+    textAlign: 'center',
+    marginBottom: 30
+  },
   card: { backgroundColor: COLORS.secondary, borderRadius: 20, padding: 25 },
-  label: { fontSize: 14, color: COLORS.text, marginBottom: 8, marginLeft: 5 },
-  input: { backgroundColor: COLORS.primary, borderRadius: 10, paddingHorizontal: 15, paddingVertical: 12, color: COLORS.text, fontSize: 16, marginBottom: 15, borderWidth: 1, borderColor: COLORS.accent + '30' },
+  label: { 
+    fontSize: 14, 
+    color: COLORS.text, 
+    marginBottom: 8, 
+    marginLeft: 5,
+    fontWeight: '600'
+  },
+  input: { 
+    backgroundColor: COLORS.primary, 
+    borderRadius: 12, 
+    paddingHorizontal: 15, 
+    paddingVertical: 14, 
+    color: COLORS.text, 
+    fontSize: 16, 
+    marginBottom: 15, 
+    borderWidth: 1, 
+    borderColor: COLORS.accent + '30' 
+  },
   genderContainer: { flexDirection: 'row', marginBottom: 15, gap: 10 },
-  genderButton: { flex: 1, backgroundColor: COLORS.primary, borderRadius: 10, paddingVertical: 12, alignItems: 'center', borderWidth: 2, borderColor: 'transparent' },
-  genderButtonActive: { borderColor: COLORS.accent, backgroundColor: COLORS.accent + '20' },
+  genderButton: { 
+    flex: 1, 
+    backgroundColor: COLORS.primary, 
+    borderRadius: 12, 
+    paddingVertical: 14, 
+    alignItems: 'center', 
+    borderWidth: 2, 
+    borderColor: 'transparent' 
+  },
+  genderButtonActive: { 
+    borderColor: COLORS.accent, 
+    backgroundColor: COLORS.accent + '20' 
+  },
   genderText: { fontSize: 16, color: COLORS.text },
   genderTextActive: { color: COLORS.accent, fontWeight: 'bold' },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.accent + '30'
+  },
+  passwordInput: {
+    flex: 1,
+    paddingHorizontal: 15,
+    paddingVertical: 14,
+    color: COLORS.text,
+    fontSize: 16
+  },
+  eyeButton: {
+    padding: 10,
+    paddingRight: 15
+  },
+  eyeIcon: {
+    fontSize: 24
+  },
+  strengthIndicator: {
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 15
+  },
+  strengthBar: {
+    height: 6,
+    backgroundColor: COLORS.primary,
+    borderRadius: 3,
+    marginBottom: 8,
+    overflow: 'hidden'
+  },
+  strengthFill: {
+    height: '100%',
+    borderRadius: 3
+  },
+  strengthText: {
+    fontSize: 13,
+    fontWeight: 'bold'
+  },
+  requirementsBox: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 15
+  },
+  requirementsTitle: {
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: 'bold',
+    marginBottom: 6
+  },
+  requirementText: {
+    fontSize: 12,
+    color: COLORS.text,
+    opacity: 0.8,
+    lineHeight: 18
+  },
   faceVerification: { marginBottom: 15 },
-  cameraButton: { backgroundColor: COLORS.primary, borderRadius: 10, padding: 30, alignItems: 'center', borderWidth: 2, borderColor: COLORS.accent, borderStyle: 'dashed' },
+  cameraButton: { 
+    backgroundColor: COLORS.primary, 
+    borderRadius: 12, 
+    padding: 30, 
+    alignItems: 'center', 
+    borderWidth: 2, 
+    borderColor: COLORS.accent, 
+    borderStyle: 'dashed' 
+  },
   cameraIcon: { fontSize: 50, marginBottom: 10 },
-  cameraText: { color: COLORS.text, fontSize: 16, marginBottom: 5 },
-  cameraSubtext: { color: COLORS.accent, fontSize: 14, fontWeight: 'bold' },
+  cameraText: { color: COLORS.text, fontSize: 16, marginBottom: 5, fontWeight: 'bold' },
+  cameraSubtext: { color: COLORS.accent, fontSize: 13 },
   faceImage: { width: 150, height: 150, borderRadius: 75 },
-  registerButton: { backgroundColor: COLORS.accent, borderRadius: 10, paddingVertical: 15, alignItems: 'center', marginTop: 10 },
-  registerButtonText: { fontSize: 16, fontWeight: 'bold', color: COLORS.textDark },
-  loginContainer: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 },
+  retakeButton: {
+    backgroundColor: COLORS.accent + '20',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: COLORS.accent
+  },
+  retakeText: {
+    fontSize: 14,
+    color: COLORS.accent,
+    fontWeight: 'bold'
+  },
+  registerButton: { 
+    backgroundColor: COLORS.accent, 
+    borderRadius: 12, 
+    paddingVertical: 16, 
+    alignItems: 'center', 
+    marginTop: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84
+  },
+  registerButtonDisabled: {
+    opacity: 0.6
+  },
+  registerButtonText: { 
+    fontSize: 16, 
+    fontWeight: 'bold', 
+    color: COLORS.textDark 
+  },
+  loginContainer: { 
+    flexDirection: 'row', 
+    justifyContent: 'center', 
+    marginTop: 25 
+  },
   loginText: { color: COLORS.text, fontSize: 14 },
-  loginLink: { color: COLORS.accent, fontSize: 14, fontWeight: 'bold' },
+  loginLink: { color: COLORS.accent, fontSize: 14, fontWeight: 'bold' }
 });
