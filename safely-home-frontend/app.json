@@ -7,22 +7,33 @@
     "runtimeVersion": "1.0.0",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+
     "splash": {
+      "image": null,
+      "resizeMode": "cover",
       "backgroundColor": "#48426D"
     },
+
     "assetBundlePatterns": [
       "**/*"
     ],
+
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yourcompany.safelyhome",
       "config": {
         "googleMapsApiKey": "AIzaSyCzsOcj0ZcFzNfyqLskuOQQC2ttgB_0Pyk"
+      },
+      "splash": {
+        "image": null,
+        "resizeMode": "cover",
+        "backgroundColor": "#48426D"
       }
     },
+
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": null,
         "backgroundColor": "#48426D"
       },
       "package": "com.yourcompany.safelyhome",
@@ -32,12 +43,7 @@
         "CAMERA",
         "INTERNET",
         "ACCESS_NETWORK_STATE",
-        "CALL_PHONE",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.CALL_PHONE"
+        "CALL_PHONE"
       ],
       "config": {
         "googleMaps": {
@@ -45,19 +51,16 @@
         }
       },
       "splash": {
-        "image": "./assets/splash-icon.png",
-        "resizeMode": "contain",
-        "backgroundColor": "#48426D",
-        "mdpi": "./assets/splash-icon.png",
-        "hdpi": "./assets/splash-icon.png",
-        "xhdpi": "./assets/splash-icon.png",
-        "xxhdpi": "./assets/splash-icon.png",
-        "xxxhdpi": "./assets/splash-icon.png"
+        "image": null,
+        "resizeMode": "cover",
+        "backgroundColor": "#48426D"
       }
     },
+
     "web": {
       "favicon": "./assets/favicon.png"
     },
+
     "plugins": [
       [
         "expo-location",
@@ -70,33 +73,20 @@
         {
           "cameraPermission": "Allow Safely Home to access your camera for driver verification."
         }
-      ],
-      [
-        "expo-splash-screen",
-        {
-          "backgroundColor": "#48426D"
-        }
       ]
     ],
+
     "updates": {
       "fallbackToCacheTimeout": 0,
       "url": "https://u.expo.dev/b8ca92cc-70e7-4870-bd36-47b1019f8dd1"
     },
+
     "extra": {
       "eas": {
         "projectId": "b8ca92cc-70e7-4870-bd36-47b1019f8dd1"
       }
     },
+
     "owner": "aliarsalansiddiqui"
-  },
-  "eas": {
-    "build": {
-      "production": {
-        "releaseChannel": "production",
-        "android": {
-          "buildType": "apk"
-        }
-      }
-    }
   }
 }
