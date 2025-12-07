@@ -9,7 +9,6 @@
     "userInterfaceStyle": "light",
 
     "splash": {
-      "image": null,
       "resizeMode": "cover",
       "backgroundColor": "#48426D"
     },
@@ -25,7 +24,6 @@
         "googleMapsApiKey": "AIzaSyCzsOcj0ZcFzNfyqLskuOQQC2ttgB_0Pyk"
       },
       "splash": {
-        "image": null,
         "resizeMode": "cover",
         "backgroundColor": "#48426D"
       }
@@ -33,16 +31,12 @@
 
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": null,
         "backgroundColor": "#48426D"
       },
       "package": "com.yourcompany.safelyhome",
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
         "CAMERA",
-        "INTERNET",
-        "ACCESS_NETWORK_STATE",
         "CALL_PHONE"
       ],
       "config": {
@@ -51,7 +45,6 @@
         }
       },
       "splash": {
-        "image": null,
         "resizeMode": "cover",
         "backgroundColor": "#48426D"
       }
