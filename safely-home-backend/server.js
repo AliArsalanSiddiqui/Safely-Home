@@ -311,6 +311,10 @@ app.get('/api/test', (req, res) => {
 // ============================================
 
 // Register - UPDATED with Cloudinary
+// ============================================
+// FIXED REGISTER ENDPOINT - Replace in server.js around line 200
+// ============================================
+
 app.post('/api/register', upload.single('faceImage'), async (req, res) => {
   try {
     console.log('📝 Registration Request Body:', req.body);
@@ -370,10 +374,10 @@ app.post('/api/register', upload.single('faceImage'), async (req, res) => {
       name,
       phone,
       userType,
-      gender: gender || (userType === 'driver' ? 'male' : null),
+      gender: gender || (userType === 'driver' ? 'male' : null), // ✅ SAVE GENDER
       vehicleInfo: userType === 'driver' ? parsedVehicleInfo : undefined,
-      faceData: imageUrl, // Cloudinary URL
-      profilePicture: imageUrl, // Same as faceData initially
+      faceData: imageUrl,
+      profilePicture: imageUrl,
       location: { type: 'Point', coordinates: [0, 0] }
     });
 
@@ -385,8 +389,9 @@ app.post('/api/register', upload.single('faceImage'), async (req, res) => {
       { expiresIn: '30d' }
     );
     
-    console.log('✅ User registered successfully:', user.email);
+    console.log('✅ User registered successfully:', user.email, 'Gender:', user.gender);
 
+    // ✅ FIXED: Return complete user object with gender
     res.status(201).json({
       success: true,
       message: 'Registration successful!',
@@ -396,7 +401,11 @@ app.post('/api/register', upload.single('faceImage'), async (req, res) => {
         email: user.email,
         name: user.name,
         userType: user.userType,
-        profilePicture: user.profilePicture
+        gender: user.gender, // ✅ CRITICAL: Include gender
+        genderPreference: user.genderPreference,
+        profilePicture: user.profilePicture,
+        phone: user.phone,
+        vehicleInfo: user.vehicleInfo
       }
     });
   } catch (error) {

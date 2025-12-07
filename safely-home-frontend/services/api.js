@@ -53,6 +53,11 @@ export const login = async (email, password) => {
   return response.data;
 };
 
+// ============================================
+// UPDATED REGISTER FUNCTION with debug logs
+// Replace in safely-home-frontend/services/api.js
+// ============================================
+
 export const register = async (userData, userType) => {
   const formData = new FormData();
   Object.keys(userData).forEach(key => {
@@ -70,14 +75,40 @@ export const register = async (userData, userType) => {
   });
   formData.append('userType', userType);
 
+  // ✅ DEBUG: Log what we're sending
+  console.log('📤 Registering user with data:', {
+    name: userData.name,
+    email: userData.email,
+    userType: userType,
+    gender: userData.gender, // ✅ Should NOT be undefined
+    phone: userData.phone
+  });
+
   const response = await api.post('/register', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  
+  // ✅ DEBUG: Log what backend returned
+  console.log('📥 Backend response:', {
+    success: response.data.success,
+    user: response.data.user,
+    gender: response.data.user?.gender // ✅ Should be 'male' or 'female'
   });
   
   if (response.data.token) {
     await AsyncStorage.setItem('token', response.data.token);
     await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+    
+    // ✅ DEBUG: Verify what was saved
+    const savedUser = await AsyncStorage.getItem('user');
+    const parsed = JSON.parse(savedUser);
+    console.log('💾 Saved user to AsyncStorage:', {
+      name: parsed.name,
+      gender: parsed.gender, // ✅ Should be 'male' or 'female'
+      userType: parsed.userType
+    });
   }
+  
   return response.data;
 };
 
