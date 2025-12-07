@@ -5,6 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { LogBox } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import CustomAlert from './components/CustomAlert';
 
 LogBox.ignoreLogs(['props.pointerEvents', 'Blocked aria-hidden']);
 
@@ -163,6 +164,7 @@ export default function App() {
           <Stack.Screen name="Support" component={SupportScreen} />
         </Stack.Navigator>
       </NavigationContainer>
+      <CustomAlert />
     </>
   );
 }

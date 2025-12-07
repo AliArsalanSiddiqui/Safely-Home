@@ -1,5 +1,5 @@
 // safely-home-frontend/screens/BookingScreen.js
-// ✅ FIXED: Keyboard handling, header position, autocomplete, scroll
+// ✅ COMPLETE - With Custom Alerts, Keyboard handling, Autocomplete
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -8,7 +8,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
@@ -22,9 +21,9 @@ import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, GOOGLE_MAPS_API_KEY } from '../config';
-import { requestRide, updateLocation, cancelRide } from '../services/api'; // ✅ Add cancelRide
+import { requestRide, updateLocation, cancelRide } from '../services/api';
 import socketService from '../services/socket';
-
+import { showAlert } from '../components/CustomAlert';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -98,7 +97,12 @@ export default function BookingScreen({ navigation, route }) {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Location permission is required');
+        showAlert(
+          'Permission Required',
+          'Location permission is required to book rides',
+          [{ text: 'OK' }],
+          { type: 'warning' }
+        );
         return;
       }
 
@@ -137,7 +141,12 @@ export default function BookingScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Location error:', error);
-      Alert.alert('Error', 'Could not get your location');
+      showAlert(
+        'Location Error',
+        'Could not get your location. Please check your GPS settings.',
+        [{ text: 'OK' }],
+        { type: 'error' }
+      );
     }
   };
 
@@ -200,13 +209,11 @@ export default function BookingScreen({ navigation, route }) {
     try {
       setSuggestionsLoading(true);
 
-      // ✅ FIXED: Proper API request
       const url = new URL('https://maps.googleapis.com/maps/api/place/autocomplete/json');
       
       url.searchParams.append('input', query);
       url.searchParams.append('key', GOOGLE_MAPS_API_KEY);
       
-      // Add bias to current location if available
       if (currentLocation) {
         url.searchParams.append('location', `${currentLocation.latitude},${currentLocation.longitude}`);
         url.searchParams.append('radius', '50000');
@@ -234,8 +241,8 @@ export default function BookingScreen({ navigation, route }) {
         const suggestions = data.predictions.map(pred => ({
           description: pred.description,
           placeId: pred.place_id,
-          mainText: pred.main_text,
-          secondaryText: pred.secondary_text
+          mainText: pred.structured_formatting?.main_text || pred.description,
+          secondaryText: pred.structured_formatting?.secondary_text || ''
         }));
 
         if (field === 'pickup') {
@@ -253,16 +260,31 @@ export default function BookingScreen({ navigation, route }) {
         }
       } else if (data.status === 'INVALID_REQUEST') {
         console.error('❌ Invalid request:', data.error_message);
-        Alert.alert('API Error', 'Invalid search request. Please try again.');
+        showAlert(
+          'Search Error',
+          'Invalid search request. Please try again.',
+          [{ text: 'OK' }],
+          { type: 'error' }
+        );
       } else if (data.status === 'REQUEST_DENIED') {
         console.error('❌ API Key Issue:', data.error_message);
-        Alert.alert('API Error', 'Google Maps API key issue. Please check configuration.');
+        showAlert(
+          'Configuration Error',
+          'Google Maps API key issue. Please contact support.',
+          [{ text: 'OK' }],
+          { type: 'error' }
+        );
       } else {
         console.error('❌ API Error:', data.status, data.error_message);
       }
     } catch (error) {
       console.error('❌ Autocomplete error:', error);
-      Alert.alert('Search Error', 'Failed to search locations. Please try again.');
+      showAlert(
+        'Search Failed',
+        'Failed to search locations. Please try again.',
+        [{ text: 'OK' }],
+        { type: 'error' }
+      );
     } finally {
       setSuggestionsLoading(false);
     }
@@ -304,7 +326,12 @@ export default function BookingScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error('Place details error:', error);
-      Alert.alert('Error', 'Failed to get location details');
+      showAlert(
+        'Location Error',
+        'Failed to get location details',
+        [{ text: 'OK' }],
+        { type: 'error' }
+      );
     }
   };
 
@@ -348,9 +375,9 @@ export default function BookingScreen({ navigation, route }) {
       setSearchingDriver(false);
       if (!data.rideId) return;
 
-      Alert.alert(
-        '🚗 Driver Found!', 
-        `${data.driver?.name || 'Driver'} is coming to pick you up!`, 
+      showAlert(
+        'Driver Found!',
+        `${data.driver?.name || 'Driver'} is coming to pick you up!`,
         [
           {
             text: 'View Details',
@@ -364,85 +391,113 @@ export default function BookingScreen({ navigation, route }) {
             }
           }
         ],
-        { cancelable: false }
+        { type: 'success', cancelable: false }
       );
     });
 
     socketService.on('rideCancelled', () => {
       setSearchingDriver(false);
-      Alert.alert('Ride Cancelled', 'The driver cancelled the ride', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
+      showAlert(
+        'Ride Cancelled',
+        'The driver cancelled the ride',
+        [
+          { 
+            text: 'OK', 
+            onPress: () => navigation.goBack() 
+          }
+        ],
+        { type: 'error' }
+      );
     });
   };
 
   const handleBookRide = async () => {
-  if (!pickup || !destination) {
-    Alert.alert('Error', 'Please enter both pickup and destination');
-    return;
-  }
-
-  if (!currentLocation || !destinationLocation) {
-    Alert.alert('Error', 'Please select valid locations');
-    return;
-  }
-
-  setLoading(true);
-  setSearchingDriver(true);
-
-  try {
-    const fare = calculatedFare || 50;
-
-    const rideData = {
-      pickup: {
-        address: pickup,
-        coordinates: [currentLocation.longitude, currentLocation.latitude]
-      },
-      destination: {
-        address: destination,
-        coordinates: [destinationLocation.longitude, destinationLocation.latitude]
-      },
-      fare
-    };
-
-    const response = await requestRide(rideData.pickup, rideData.destination, rideData.fare);
-
-    if (response.success) {
-      setCurrentRideId(response.rideId);
-      
-      Alert.alert(
-        'Finding Driver',
-        `Looking for ${response.availableDrivers} available drivers...\n\n💰 Fare: ${response.calculatedFare} pkr\n📍 Distance: ${response.distance}\n⏱️ ETA: ${response.estimatedTime}`,
-        [
-          {
-            text: 'Cancel Search',
-            onPress: async () => {
-              // ✅ NEW: Cancel the ride when search is cancelled
-              try {
-                await cancelRide(response.rideId);
-                console.log('✅ Ride cancelled during search');
-              } catch (error) {
-                console.error('❌ Failed to cancel ride:', error);
-              }
-              setSearchingDriver(false);
-              navigation.goBack();
-            },
-            style: 'cancel'
-          }
-        ]
+    if (!pickup || !destination) {
+      showAlert(
+        'Missing Information',
+        'Please enter both pickup and destination locations',
+        [{ text: 'OK' }],
+        { type: 'warning' }
       );
-    } else {
-      setSearchingDriver(false);
-      Alert.alert('Booking Failed', response.error || 'Please try again');
+      return;
     }
-  } catch (error) {
-    setSearchingDriver(false);
-    console.error('Booking error:', error);
-    Alert.alert('Booking Failed', error.response?.data?.error || 'Please try again');
-  } finally {
-    setLoading(false);
-  }
-};
+
+    if (!currentLocation || !destinationLocation) {
+      showAlert(
+        'Invalid Locations',
+        'Please select valid locations on the map',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
+      return;
+    }
+
+    setLoading(true);
+    setSearchingDriver(true);
+
+    try {
+      const fare = calculatedFare || 50;
+
+      const rideData = {
+        pickup: {
+          address: pickup,
+          coordinates: [currentLocation.longitude, currentLocation.latitude]
+        },
+        destination: {
+          address: destination,
+          coordinates: [destinationLocation.longitude, destinationLocation.latitude]
+        },
+        fare
+      };
+
+      const response = await requestRide(rideData.pickup, rideData.destination, rideData.fare);
+
+      if (response.success) {
+        setCurrentRideId(response.rideId);
+        
+        showAlert(
+          'Finding Driver',
+          `Searching for ${response.availableDrivers} available drivers nearby...\n\n💰 Fare: ${response.calculatedFare} pkr\n📍 Distance: ${response.distance}\n⏱️ ETA: ${response.estimatedTime}`,
+          [
+            {
+              text: 'Cancel Search',
+              style: 'cancel',
+              onPress: async () => {
+                try {
+                  await cancelRide(response.rideId);
+                  console.log('✅ Ride cancelled during search');
+                } catch (error) {
+                  console.error('❌ Failed to cancel ride:', error);
+                }
+                setSearchingDriver(false);
+                navigation.goBack();
+              }
+            }
+          ],
+          { type: 'searching' }
+        );
+      } else {
+        setSearchingDriver(false);
+        showAlert(
+          'Booking Failed',
+          response.error || 'Please try again',
+          [{ text: 'OK' }],
+          { type: 'error' }
+        );
+      }
+    } catch (error) {
+      setSearchingDriver(false);
+      console.error('Booking error:', error);
+      showAlert(
+        'Booking Failed',
+        error.response?.data?.error || 'Unable to book ride. Please try again.',
+        [{ text: 'OK' }],
+        { type: 'error' }
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleInputFocus = (field) => {
     setActiveField(field);
