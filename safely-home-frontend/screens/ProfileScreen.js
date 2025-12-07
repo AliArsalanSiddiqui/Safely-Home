@@ -283,7 +283,7 @@ export default function ProfileScreen({ navigation }) {
                 <Text style={styles.cameraIconText}>📷</Text>
               </View>
             </TouchableOpacity>
-            <Text style={styles.profileImageHint}>Tap to change picture</Text>
+            <Text style={styles.profileImageHint}>Tap to change picture </Text>
             {newImageUri && (
               <Text style={styles.unsavedChanges}>• Unsaved changes</Text>
             )}

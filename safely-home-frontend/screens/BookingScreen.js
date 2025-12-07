@@ -693,11 +693,11 @@ const styles = StyleSheet.create({
     flexGrow: 1
   },
   mapContainer: {
-    height: 300,
+    height: 500,
     marginHorizontal: 0,
     marginVertical: 15,
-    borderRadius: 12,
-    overflow: 'hidden',
+    borderRadius: 20,
+    overflow: 'visible',
     position: 'relative'
   },
   map: {

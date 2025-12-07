@@ -173,7 +173,7 @@ export default function Sidebar({ visible, onClose, navigation, userType }) {
                   </Text>
                 </View>
                 <Text style={styles.userName}>{user?.name || 'User'}</Text>
-                <Text style={styles.userEmail}>{user?.email || ''}</Text>
+                <Text style={styles.userEmail}>{user?.email || ''} </Text>
                 <View style={styles.userTypeBadge}>
                   <Text style={styles.userTypeText}>
                     {userType === 'rider' ? '👤 Rider' : '🚗 Driver'}
@@ -275,8 +275,8 @@ export default function Sidebar({ visible, onClose, navigation, userType }) {
 
               {/* App Info */}
               <View style={styles.appInfo}>
-                <Text style={styles.appVersion}>Safely Home v1.0.0</Text>
-                <Text style={styles.appSubtext}>Your Safety, Our Priority</Text>
+                <Text style={styles.appVersion}>Safely Home v1.0.0 </Text>
+                <Text style={styles.appSubtext}>Your Safety, Our Priority  </Text>
               </View>
             </ScrollView>
           </SafeAreaView>

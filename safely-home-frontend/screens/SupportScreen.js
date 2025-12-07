@@ -233,7 +233,7 @@ export default function SupportScreen({ navigation }) {
           <Text style={styles.infoTitle}>Safely Home Support</Text>
           <Text style={styles.infoText}>
             Email: support@safelyhome.com{'\n'}
-            Phone: +1 (234) 567-890{'\n'}
+            Phone: +92 (333) 2859061{'\n'}
             Hours: 24/7 Support Available
           </Text>
         </View>

@@ -99,8 +99,7 @@ export default function RideHistoryScreen({ navigation }) {
           </Text>
         </View>
         <Text style={styles.rideDate}>
-          {new Date(ride.createdAt).toLocaleDateString()}
-        </Text>
+          {new Date(ride.createdAt).toLocaleDateString()} </Text>
       </View>
 
       <View style={styles.locationRow}>
@@ -132,7 +131,7 @@ export default function RideHistoryScreen({ navigation }) {
         <View style={styles.fareContainer}>
           <Text style={styles.fareAmount}>{ride.fare?.toFixed(2) || '0.00'} pkr</Text>
           {ride.distance && (
-            <Text style={styles.fareSubtext}>{ride.distance.toFixed(1)} km</Text>
+            <Text style={styles.fareSubtext}>{ride.distance.toFixed(1)} km </Text>
           )}
         </View>
       </View>

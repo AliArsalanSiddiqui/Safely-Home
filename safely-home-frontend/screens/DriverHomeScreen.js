@@ -229,12 +229,12 @@ export default function DriverHomeScreen({ navigation }) {
           <View style={styles.earningsStats}>
             <View style={styles.stat}>
               <Text style={styles.statValue}>{earnings.todayRides}</Text>
-              <Text style={styles.statLabel}>Rides Today</Text>
+              <Text style={styles.statLabel}>Rides Today </Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.stat}>
               <Text style={styles.statValue}>{earnings.totalEarnings} pkr</Text>
-              <Text style={styles.statLabel}>Total Earnings</Text>
+              <Text style={styles.statLabel}>Total Earnings </Text>
             </View>
           </View>
         </View>
@@ -245,7 +245,7 @@ export default function DriverHomeScreen({ navigation }) {
           <View style={styles.performanceStats}>
             <View style={styles.stat}>
               <Text style={styles.statValue}>{driverStats.totalRides}</Text>
-              <Text style={styles.statLabel}>Total Rides</Text>
+              <Text style={styles.statLabel}>Total Rides </Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.stat}>
@@ -288,8 +288,8 @@ export default function DriverHomeScreen({ navigation }) {
           {isOnline && availableRides.length === 0 && (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>⏳</Text>
-              <Text style={styles.emptyText}>No rides available right now</Text>
-              <Text style={styles.emptySubtext}>Pull down to refresh</Text>
+              <Text style={styles.emptyText}>No rides available right now </Text>
+              <Text style={styles.emptySubtext}>Pull down to refresh </Text>
             </View>
           )}
 

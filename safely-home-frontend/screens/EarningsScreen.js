@@ -142,7 +142,7 @@ export default function EarningsScreen({ navigation }) {
                   ? (earnings.todayEarnings / earnings.todayRides).toFixed(2) 
                   : '0.00'}
               </Text>
-              <Text style={styles.todayStatLabel}>Avg/Ride</Text>
+              <Text style={styles.todayStatLabel}>Avg/Ride </Text>
             </View>
           </View>
         </View>
@@ -150,15 +150,15 @@ export default function EarningsScreen({ navigation }) {
         {/* Total Earnings */}
         <View style={styles.totalCard}>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total Earnings</Text>
+            <Text style={styles.totalLabel}>Total Earnings </Text>
             <Text style={styles.totalAmount}>{earnings.totalEarnings} pkr</Text>
           </View>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total Rides</Text>
+            <Text style={styles.totalLabel}>Total Rides </Text>
             <Text style={styles.totalValue}>{earnings.totalRides} rides</Text>
           </View>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Average per Ride</Text>
+            <Text style={styles.totalLabel}>Average per Ride </Text>
             <Text style={styles.totalValue}>
               {earnings.totalRides > 0 
                 ? (earnings.totalEarnings / earnings.totalRides).toFixed(2) 
@@ -213,7 +213,7 @@ export default function EarningsScreen({ navigation }) {
                     <Text style={styles.rideEarningsAmount}>
                       {calculateDriverEarnings(ride.fare)} pkr
                     </Text>
-                    <Text style={styles.rideEarningsLabel}>Your Earnings</Text>
+                    <Text style={styles.rideEarningsLabel}>Your Earnings </Text>
                   </View>
                 </View>
 
@@ -238,13 +238,11 @@ export default function EarningsScreen({ navigation }) {
                   </Text>
                   {ride.distance && (
                     <Text style={styles.rideMetaText}>
-                      {ride.distance.toFixed(1)} km
-                    </Text>
+                      {ride.distance.toFixed(1)} km </Text>
                   )}
                   {ride.feedback?.rating && (
                     <Text style={styles.rideMetaText}>
-                      ⭐ {ride.feedback.rating}
-                    </Text>
+                      ⭐ {ride.feedback.rating} </Text>
                   )}
                 </View>
               </View>
