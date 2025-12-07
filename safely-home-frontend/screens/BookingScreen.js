@@ -411,73 +411,163 @@ export default function BookingScreen({ navigation, route }) {
     });
   };
 
-  const handleBookRide = async () => {
-    if (!pickup || !destination) {
-      showAlert(
-        'Missing Information',
-        'Please enter both pickup and destination locations',
-        [{ text: 'OK' }],
-        { type: 'warning' }
-      );
-      return;
-    }
+  // ============================================
+// ADD TO BookingScreen.js - Inside handleBookRide function
+// Add this validation BEFORE the ride request
+// ============================================
 
-    if (!currentLocation || !destinationLocation) {
-      showAlert(
-        'Invalid Locations',
-        'Please select valid locations on the map',
-        [{ text: 'OK' }],
-        { type: 'warning' }
-      );
-      return;
-    }
+const handleBookRide = async () => {
+  if (!pickup || !destination) {
+    showAlert(
+      'Missing Information',
+      'Please enter both pickup and destination locations',
+      [{ text: 'OK' }],
+      { type: 'warning' }
+    );
+    return;
+  }
 
-    setLoading(true);
-    setSearchingDriver(true);
+  if (!currentLocation || !destinationLocation) {
+    showAlert(
+      'Invalid Locations',
+      'Please select valid locations on the map',
+      [{ text: 'OK' }],
+      { type: 'warning' }
+    );
+    return;
+  }
 
-    try {
-      const fare = calculatedFare || 50;
+  // ✅ NEW: Validate gender and preference BEFORE booking
+  try {
+    const userData = await AsyncStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      
+      console.log('🔍 Checking user before booking:', {
+        gender: user.gender,
+        genderPreference: user.genderPreference,
+        userType: user.userType
+      });
 
-      const rideData = {
-        pickup: {
-          address: pickup,
-          coordinates: [currentLocation.longitude, currentLocation.latitude]
-        },
-        destination: {
-          address: destination,
-          coordinates: [destinationLocation.longitude, destinationLocation.latitude]
-        },
-        fare
-      };
-
-      const response = await requestRide(rideData.pickup, rideData.destination, rideData.fare);
-
-      if (response.success) {
-        setCurrentRideId(response.rideId);
-        
+      // Check if gender is set
+      if (!user.gender) {
         showAlert(
-          'Finding Driver',
-          `Searching for ${response.availableDrivers} available drivers nearby...\n\n💰 Fare: ${response.calculatedFare} pkr\n📍 Distance: ${response.distance}\n⏱️ ETA: ${response.estimatedTime}`,
+          'Profile Incomplete',
+          'Please complete your profile before booking a ride.',
           [
-            {
-              text: 'Cancel Search',
-              style: 'cancel',
-              onPress: async () => {
-                try {
-                  await cancelRide(response.rideId);
-                  console.log('✅ Ride cancelled during search');
-                } catch (error) {
-                  console.error('❌ Failed to cancel ride:', error);
-                }
-                setSearchingDriver(false);
-                navigation.goBack();
-              }
+            { 
+              text: 'Update Profile', 
+              onPress: () => navigation.navigate('Profile') 
             }
           ],
-          { type: 'searching' }
+          { type: 'warning' }
+        );
+        return;
+      }
+
+      // Male riders must have male preference
+      if (user.gender === 'male' && user.genderPreference !== 'male') {
+        console.log('⚠️ Auto-fixing male rider preference');
+        // This will be auto-fixed on backend, but we can update locally too
+        user.genderPreference = 'male';
+        await AsyncStorage.setItem('user', JSON.stringify(user));
+      }
+
+      // Female riders must have preference set
+      if (user.gender === 'female' && !user.genderPreference) {
+        showAlert(
+          'Driver Preference Required',
+          'Please select your driver preference before booking.',
+          [
+            { 
+              text: 'Set Preference', 
+              onPress: () => navigation.navigate('GenderPreference') 
+            }
+          ],
+          { type: 'warning', cancelable: false }
+        );
+        return;
+      }
+
+      console.log('✅ User validation passed, proceeding with booking');
+    }
+  } catch (error) {
+    console.error('❌ User validation error:', error);
+  }
+
+  setLoading(true);
+  setSearchingDriver(true);
+
+  try {
+    const fare = calculatedFare || 50;
+
+    const rideData = {
+      pickup: {
+        address: pickup,
+        coordinates: [currentLocation.longitude, currentLocation.latitude]
+      },
+      destination: {
+        address: destination,
+        coordinates: [destinationLocation.longitude, destinationLocation.latitude]
+      },
+      fare
+    };
+
+    const response = await requestRide(rideData.pickup, rideData.destination, rideData.fare);
+
+    if (response.success) {
+      setCurrentRideId(response.rideId);
+      
+      // ✅ Show gender filter info in the alert
+      let filterInfo = '';
+      if (response.driverFilter) {
+        if (response.driverFilter.gender === 'male') {
+          filterInfo = '\n🚗 Searching for male drivers only';
+        } else if (response.driverFilter.gender === 'female') {
+          filterInfo = '\n🚗 Searching for female drivers only';
+        } else {
+          filterInfo = '\n🚗 Searching for all available drivers';
+        }
+      }
+      
+      showAlert(
+        'Finding Driver',
+        `Searching for ${response.availableDrivers} available drivers nearby...${filterInfo}\n\n💰 Fare: ${response.calculatedFare} pkr\n📍 Distance: ${response.distance}\n⏱️ ETA: ${response.estimatedTime}`,
+        [
+          {
+            text: 'Cancel Search',
+            style: 'cancel',
+            onPress: async () => {
+              try {
+                await cancelRide(response.rideId);
+                console.log('✅ Ride cancelled during search');
+              } catch (error) {
+                console.error('❌ Failed to cancel ride:', error);
+              }
+              setSearchingDriver(false);
+              navigation.goBack();
+            }
+          }
+        ],
+        { type: 'searching' }
+      );
+    } else {
+      setSearchingDriver(false);
+      
+      // ✅ Handle gender preference error
+      if (response.requiresGenderPreference) {
+        showAlert(
+          'Driver Preference Required',
+          response.error || 'Please select your driver preference before booking.',
+          [
+            { 
+              text: 'Set Preference', 
+              onPress: () => navigation.navigate('GenderPreference') 
+            }
+          ],
+          { type: 'warning', cancelable: false }
         );
       } else {
-        setSearchingDriver(false);
         showAlert(
           'Booking Failed',
           response.error || 'Please try again',
@@ -485,20 +575,36 @@ export default function BookingScreen({ navigation, route }) {
           { type: 'error' }
         );
       }
-    } catch (error) {
-      setSearchingDriver(false);
-      console.error('Booking error:', error);
+    }
+  } catch (error) {
+    setSearchingDriver(false);
+    console.error('Booking error:', error);
+    
+    // ✅ Handle gender preference error from API
+    if (error.response?.data?.requiresGenderPreference) {
+      showAlert(
+        'Driver Preference Required',
+        error.response.data.error || 'Please select your driver preference before booking.',
+        [
+          { 
+            text: 'Set Preference', 
+            onPress: () => navigation.navigate('GenderPreference') 
+          }
+        ],
+        { type: 'warning', cancelable: false }
+      );
+    } else {
       showAlert(
         'Booking Failed',
         error.response?.data?.error || 'Unable to book ride. Please try again.',
         [{ text: 'OK' }],
         { type: 'error' }
       );
-    } finally {
-      setLoading(false);
     }
-  };
-
+  } finally {
+    setLoading(false);
+  }
+};
   const handleInputFocus = (field) => {
     setActiveField(field);
     setUseMapSelection(false);
