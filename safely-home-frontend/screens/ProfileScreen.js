@@ -292,7 +292,7 @@ export default function ProfileScreen({ navigation }) {
           {/* User Info Card */}
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>User Type</Text>
+              <Text style={styles.infoLabel}>User Type </Text>
               <View style={styles.userTypeBadge}>
                 <Text style={styles.userTypeText}>
                   {user?.userType === 'rider' ? '👤 Rider' : '🚗 Driver'}
@@ -301,7 +301,7 @@ export default function ProfileScreen({ navigation }) {
             </View>
 
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Gender</Text>
+              <Text style={styles.infoLabel}>Gender </Text>
               <Text style={styles.infoValue}>
                 {user?.gender === 'male' ? '👨 Male' : 
                  user?.gender === 'female' ? '👩 Female' : 'Not specified'}
@@ -309,7 +309,7 @@ export default function ProfileScreen({ navigation }) {
             </View>
 
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Member Since</Text>
+              <Text style={styles.infoLabel}>Member Since </Text>
               <Text style={styles.infoValue}>
                 {new Date(user?.createdAt).toLocaleDateString()}
               </Text>
@@ -317,14 +317,14 @@ export default function ProfileScreen({ navigation }) {
 
             {user?.rating && (
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Rating</Text>
+                <Text style={styles.infoLabel}>Rating </Text>
                 <Text style={styles.infoValue}>⭐ {user.rating.toFixed(1)}</Text>
               </View>
             )}
 
             {user?.totalRides !== undefined && (
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Total Rides</Text>
+                <Text style={styles.infoLabel}>Total Rides </Text>
                 <Text style={styles.infoValue}>{user.totalRides} rides</Text>
               </View>
             )}
@@ -490,7 +490,10 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: COLORS.primary
   },
-  cameraIconText: { fontSize: 20 },
+  cameraIconText: { fontSize: 18,
+    paddingLeft: 2,
+    paddingBottom: 3,
+   },
   profileImageHint: {
     fontSize: 14,
     color: COLORS.text,

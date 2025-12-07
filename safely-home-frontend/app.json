@@ -8,8 +8,6 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
       "backgroundColor": "#48426D"
     },
     "assetBundlePatterns": [
@@ -76,9 +74,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#48426D",
-          "image": "./assets/splash-icon.png",
-          "imageWidth": 200
+          "backgroundColor": "#48426D"
         }
       ]
     ],
