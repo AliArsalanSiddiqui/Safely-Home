@@ -9,6 +9,7 @@ import { completeRide, cancelRide } from '../services/api';
 import socketService from '../services/socket';
 import { makePhoneCall, makeEmergencyCall } from '../services/phoneUtils';
 import { showAlert } from '../components/CustomAlert';
+import ProfileAvatar from '../components/ProfileAvatar';
 
 export default function DriverTrackingScreen({ navigation, route }) {
   const { rideId, rider, pickup, destination } = route.params || {};
@@ -324,11 +325,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
 
         <View style={styles.riderCard}>
           <View style={styles.riderInfo}>
-            <View style={styles.riderAvatar}>
-              <Text style={styles.riderAvatarText}>
-                {riderInfo?.name?.split(' ').map(n => n[0]).join('') || 'R'}
-              </Text>
-            </View>
+            <ProfileAvatar user={riderInfo} size={60} fontSize={24} />
             <View style={styles.riderDetails}>
               <Text style={styles.riderName}>{riderInfo?.name || 'Rider'}</Text>
               <Text style={styles.riderPhone}>📞 {riderInfo?.phone || 'Phone'}</Text>
@@ -445,7 +442,7 @@ const styles = StyleSheet.create({
   riderInfo: { flexDirection: 'row', marginBottom: 20 },
   riderAvatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
   riderAvatarText: { fontSize: 24, fontWeight: 'bold', color: COLORS.textDark },
-  riderDetails: { flex: 1, justifyContent: 'center' },
+  riderDetails: { flex: 1, justifyContent: 'center', marginLeft: 15 },
   riderName: { fontSize: 20, fontWeight: 'bold', color: COLORS.text, marginBottom: 5 },
   riderPhone: { fontSize: 14, color: COLORS.text, opacity: 0.8 },
   riderActions: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 20 },

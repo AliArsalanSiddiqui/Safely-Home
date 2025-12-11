@@ -9,6 +9,7 @@ import { cancelRide } from '../services/api';
 import socketService from '../services/socket';
 import { makePhoneCall, makeEmergencyCall } from '../services/phoneUtils';
 import { showAlert } from '../components/CustomAlert';
+import ProfileAvatar from '../components/ProfileAvatar';
 
 export default function RiderTrackingScreen({ navigation, route }) {
   const params = route.params || {};
@@ -271,11 +272,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
 
         <View style={styles.driverCard}>
           <View style={styles.driverInfo}>
-            <View style={styles.driverAvatar}>
-              <Text style={styles.driverAvatarText}>
-                {driver?.name ? driver.name.split(' ').map(n => n[0]).join('') : 'D'}
-              </Text>
-            </View>
+            <ProfileAvatar user={driver} size={70} fontSize={28} />
             <View style={styles.driverDetails}>
               <Text style={styles.driverName}>{driver?.name || 'Driver'}</Text>
               <View style={styles.ratingContainer}>
@@ -391,7 +388,7 @@ const styles = StyleSheet.create({
   driverInfo: { flexDirection: 'row', marginBottom: 20 },
   driverAvatar: { width: 70, height: 70, borderRadius: 35, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
   driverAvatarText: { fontSize: 28, fontWeight: 'bold', color: COLORS.textDark },
-  driverDetails: { flex: 1, justifyContent: 'center' },
+  driverDetails: { flex: 1, justifyContent: 'center', marginLeft: 15 },
   driverName: { fontSize: 22, fontWeight: 'bold', color: COLORS.text, marginBottom: 5 },
   ratingContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
   ratingStar: { fontSize: 16, marginRight: 5 },

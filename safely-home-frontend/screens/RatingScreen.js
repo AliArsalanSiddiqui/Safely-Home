@@ -6,6 +6,7 @@ import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Activi
 import { COLORS } from '../config';
 import { rateRide } from '../services/api';
 import { showAlert } from '../components/CustomAlert';
+import ProfileAvatar from '../components/ProfileAvatar';
 
 export default function RatingScreen({ navigation, route }) {
   const { rideId, driver } = route.params || {};
@@ -106,11 +107,7 @@ export default function RatingScreen({ navigation, route }) {
         </View>
 
         <View style={styles.driverCard}>
-          <View style={styles.driverAvatar}>
-            <Text style={styles.driverAvatarText}>
-              {driver?.name?.split(' ').map(n => n[0]).join('') || 'D'}
-            </Text>
-          </View>
+          <ProfileAvatar user={driver} size={80} fontSize={32} />
           <Text style={styles.driverName}>{driver?.name || 'Your Driver'}</Text>
           <View style={styles.driverStats}>
             <Text style={styles.driverStat}>⭐ {driver.rating || '4.9'}</Text>

@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, API_URL } from '../config';
+import ProfileAvatar from '../components/ProfileAvatar';
 
 export default function RideHistoryScreen({ navigation }) {
   const [rides, setRides] = useState([]);
@@ -87,7 +88,9 @@ export default function RideHistoryScreen({ navigation }) {
     setRefreshing(false);
   };
 
-  const RideCard = ({ ride }) => (
+  const RideCard = ({ ride }) => {
+    const otherUser = userType === 'rider' ? ride.driverId : ride.riderId;
+  return (
     <View style={styles.rideCard}>
       <View style={styles.rideHeader}>
         <View style={[
@@ -118,13 +121,14 @@ export default function RideHistoryScreen({ navigation }) {
 
       <View style={styles.rideFooter}>
         <View style={styles.personInfo}>
-          <Text style={styles.personIcon}>
-            {userType === 'rider' ? '🚗' : '👤'}
-          </Text>
+          <ProfileAvatar 
+            user={otherUser} 
+            size={40} 
+            fontSize={16} 
+            style={{ marginRight: 10 }}
+          />
           <Text style={styles.personName}>
-            {userType === 'rider' 
-              ? ride.driverId?.name || 'Driver' 
-              : ride.riderId?.name || 'Rider'}
+            {otherUser?.name || (userType === 'rider' ? 'Driver' : 'Rider')}
           </Text>
         </View>
         
@@ -144,7 +148,7 @@ export default function RideHistoryScreen({ navigation }) {
       )}
     </View>
   );
-
+ }
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>

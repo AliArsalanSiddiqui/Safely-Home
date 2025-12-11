@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, API_URL } from '../config';
+import ProfileAvatar from './ProfileAvatar';
 
 const { width } = Dimensions.get('window');
 
@@ -167,19 +168,15 @@ export default function Sidebar({ visible, onClose, navigation, userType }) {
             >
               {/* Profile Header */}
               <View style={styles.profileSection}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {user?.name?.split(' ').map(n => n[0]).join('') || 'U'}
-                  </Text>
-                </View>
-                <Text style={styles.userName}>{user?.name || 'User'}</Text>
-                <Text style={styles.userEmail}>{user?.email || ''} </Text>
-                <View style={styles.userTypeBadge}>
-                  <Text style={styles.userTypeText}>
-                    {userType === 'rider' ? '👤 Rider' : '🚗 Driver'}
-                  </Text>
-                </View>
+              <ProfileAvatar user={user} size={80} fontSize={32} />
+              <Text style={styles.userName}>{user?.name || 'User'}</Text>
+              <Text style={styles.userEmail}>{user?.email || ''}</Text>
+              <View style={styles.userTypeBadge}>
+                <Text style={styles.userTypeText}>
+                  {userType === 'rider' ? '👤 Rider' : '🚗 Driver'}
+                </Text>
               </View>
+            </View>
 
               <View style={styles.divider} />
 

@@ -19,6 +19,7 @@ import { COLORS } from '../config';
 import { updateDriverStatus, getAvailableRides, acceptRide, getDriverEarnings, getDriverStats, logout } from '../services/api';
 import socketService from '../services/socket';
 import Sidebar from '../components/Sidebar'; // ✅ Import sidebar
+import ProfileAvatar from '../components/ProfileAvatar';
 
 export default function DriverHomeScreen({ navigation }) {
   const [isOnline, setIsOnline] = useState(false);
@@ -297,8 +298,18 @@ export default function DriverHomeScreen({ navigation }) {
           )}
 
           {availableRides.map((ride, index) => (
-            <View key={ride.id || index} style={styles.rideCard}>
-              <View style={styles.rideHeader}>
+          <View key={ride.id || index} style={styles.rideCard}>
+            <View style={styles.rideHeader}>
+              <View style={styles.riderInfoSection}>
+                <ProfileAvatar 
+                  user={{ 
+                    name: ride.riderName,
+                    profilePicture: ride.riderProfilePicture // ✅ Need to add this to backend response
+                  }} 
+                  size={50} 
+                  fontSize={20}
+                  style={{ marginRight: 12 }}
+                />
                 <View>
                   <Text style={styles.riderName}>👤 {ride.riderName}</Text>
                   <Text style={styles.rideTime}>📞 {ride.riderPhone}</Text>
@@ -306,6 +317,7 @@ export default function DriverHomeScreen({ navigation }) {
                     🕐 {new Date(ride.createdAt).toLocaleTimeString()}
                   </Text>
                 </View>
+              </View>
                 <View style={styles.fareContainer}>
                   <Text style={styles.rideFare}>{ride.fare.toFixed(0)} pkr</Text>
                   <Text style={styles.fareLabel}>Fare </Text>
@@ -404,4 +416,5 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 100 // ✅ Extra padding for Android nav buttons
   },
+  riderInfoSection: { flexDirection: 'row', alignItems: 'center', flex: 1 }
 });

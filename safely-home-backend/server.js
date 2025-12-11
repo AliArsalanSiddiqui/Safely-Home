@@ -753,7 +753,7 @@ app.get('/api/rides/available', authenticateToken, async (req, res) => {
       active: true,
       driverId: { $exists: false }
     })
-    .populate('riderId', 'name phone gender genderPreference')
+    .populate('riderId', 'name phone gender genderPreference profilePicture')
     .sort({ createdAt: -1 })
     .limit(20); // Get more, we'll filter
 
@@ -764,7 +764,7 @@ app.get('/api/rides/available', authenticateToken, async (req, res) => {
       const riderGender = ride.riderId.gender;
       const riderPref = ride.riderId.genderPreference;
       const driverGender = driver.gender;
-
+      
       console.log('🔍 Checking ride:', {
         rideId: ride._id.toString().slice(-6),
         riderGender,
@@ -819,7 +819,8 @@ app.get('/api/rides/available', authenticateToken, async (req, res) => {
         fare: ride.fare,
         distance: ride.distance,
         estimatedTime: ride.estimatedTime,
-        createdAt: ride.createdAt
+        createdAt: ride.createdAt,
+        profilePicture: ride.riderId?.profilePicture
       }))
     });
   } catch (error) {
@@ -1028,7 +1029,8 @@ app.post('/api/ride/request', authenticateToken, async (req, res) => {
         destination: destination.address,
         fare: calculatedFare.toFixed(2),
         distance: calculatedDistance.toFixed(2),
-        estimatedTime: calculatedETA
+        estimatedTime: calculatedETA,
+        profilePicture: rider.profilePicture
       });
     });
 
