@@ -403,7 +403,9 @@ export default function RiderRegistrationScreen({ navigation }) {
               ]}
               onPress={() => {
                 handleFieldChange('gender', 'male');
-                handleBlur('gender');
+                // ✅ FIX: Immediately mark as touched and clear error
+                setTouched(prev => ({ ...prev, gender: true }));
+                setErrors(prev => ({ ...prev, gender: '' }));
               }}
               disabled={loading}
               activeOpacity={0.7}
@@ -420,7 +422,9 @@ export default function RiderRegistrationScreen({ navigation }) {
               ]}
               onPress={() => {
                 handleFieldChange('gender', 'female');
-                handleBlur('gender');
+                // ✅ FIX: Immediately mark as touched and clear error
+                setTouched(prev => ({ ...prev, gender: true }));
+                setErrors(prev => ({ ...prev, gender: '' }));
               }}
               disabled={loading}
               activeOpacity={0.7}

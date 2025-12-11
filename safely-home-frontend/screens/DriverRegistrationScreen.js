@@ -205,29 +205,31 @@ export default function DriverRegistrationScreen({ navigation }) {
   };
 
   const pickImage = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      showAlert(
-        'Permission Required',
-        'Camera permission is required for face verification',
-        [{ text: 'OK' }],
-        { type: 'warning' }
-      );
-      return;
-    }
+  const { status } = await ImagePicker.requestCameraPermissionsAsync();
+  if (status !== 'granted') {
+    showAlert(
+      'Permission Required',
+      'Camera permission is required for face verification',
+      [{ text: 'OK' }],
+      { type: 'warning' }
+    );
+    return;
+  }
 
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-    });
+  const result = await ImagePicker.launchCameraAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 0.7,
+  });
 
-    if (!result.canceled) {
-      handleFieldChange('faceImage', result.assets[0].uri);
-      handleBlur('faceImage');
-    }
-  };
+  if (!result.canceled) {
+    handleFieldChange('faceImage', result.assets[0].uri);
+    // ✅ FIX: Immediately mark as touched and clear error
+    setTouched(prev => ({ ...prev, faceImage: true }));
+    setErrors(prev => ({ ...prev, faceImage: '' }));
+  }
+};
 
   const validateAllFields = () => {
     const allErrors = {
@@ -456,7 +458,9 @@ export default function DriverRegistrationScreen({ navigation }) {
               ]}
               onPress={() => {
                 handleFieldChange('gender', 'male');
-                handleBlur('gender');
+                // ✅ FIX: Immediately mark as touched and clear error
+                setTouched(prev => ({ ...prev, gender: true }));
+                setErrors(prev => ({ ...prev, gender: '' }));
               }}
               disabled={loading}
               activeOpacity={0.7}
@@ -473,7 +477,9 @@ export default function DriverRegistrationScreen({ navigation }) {
               ]}
               onPress={() => {
                 handleFieldChange('gender', 'female');
-                handleBlur('gender');
+                // ✅ FIX: Immediately mark as touched and clear error
+                setTouched(prev => ({ ...prev, gender: true }));
+                setErrors(prev => ({ ...prev, gender: '' }));
               }}
               disabled={loading}
               activeOpacity={0.7}
