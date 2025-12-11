@@ -1,5 +1,5 @@
 // safely-home-frontend/screens/ProfileScreen.js
-// ✅ COMPLETE PROFILE SCREEN - Works for both Rider & Driver
+// ✅ COMPLETE PROFILE SCREEN - With Custom Alerts
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -10,7 +10,6 @@ import {
   StyleSheet,
   ScrollView,
   Image,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform
@@ -19,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, API_URL } from '../config';
+import { showAlert } from '../components/CustomAlert';
 
 export default function ProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -45,11 +45,14 @@ export default function ProfileScreen({ navigation }) {
   const loadProfile = async () => {
     try {
       const tokenData = await AsyncStorage.getItem('token');
-      const userData = await AsyncStorage.getItem('user');
       
       if (!tokenData) {
-        Alert.alert('Error', 'Please login again');
-        navigation.replace('Login');
+        showAlert(
+          'Session Expired',
+          'Please login again to continue',
+          [{ text: 'OK', onPress: () => navigation.replace('Login') }],
+          { type: 'warning', cancelable: false }
+        );
         return;
       }
 
@@ -84,11 +87,21 @@ export default function ProfileScreen({ navigation }) {
         }
       } else {
         const error = await response.json();
-        Alert.alert('Error', error.error || 'Failed to load profile');
+        showAlert(
+          'Load Failed',
+          error.error || 'Failed to load profile',
+          [{ text: 'OK' }],
+          { type: 'error' }
+        );
       }
     } catch (error) {
       console.error('❌ Load profile error:', error);
-      Alert.alert('Error', 'Failed to load profile');
+      showAlert(
+        'Connection Error',
+        'Unable to load profile. Please check your internet connection.',
+        [{ text: 'OK' }],
+        { type: 'error' }
+      );
     } finally {
       setLoading(false);
     }
@@ -97,13 +110,18 @@ export default function ProfileScreen({ navigation }) {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera permission is required');
+      showAlert(
+        'Permission Required',
+        'Camera permission is needed to update your profile picture',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
       return;
     }
 
-    Alert.alert(
+    showAlert(
       'Update Profile Picture',
-      'Choose an option',
+      'Choose how you want to update your photo',
       [
         {
           text: 'Take Photo',
@@ -136,18 +154,29 @@ export default function ProfileScreen({ navigation }) {
           }
         },
         { text: 'Cancel', style: 'cancel' }
-      ]
+      ],
+      { type: 'info' }
     );
   };
 
   const handleSave = async () => {
     if (!name.trim() || !email.trim() || !phone.trim()) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      showAlert(
+        'Missing Information',
+        'Please fill in all required fields (Name, Email, Phone)',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
       return;
     }
 
     if (user.userType === 'driver' && (!vehicleModel.trim() || !licensePlate.trim())) {
-      Alert.alert('Error', 'Please fill in vehicle information');
+      showAlert(
+        'Missing Vehicle Info',
+        'Please fill in your vehicle information',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
       return;
     }
 
@@ -202,23 +231,38 @@ export default function ProfileScreen({ navigation }) {
         
         await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
 
-        Alert.alert('Success', 'Profile updated successfully', [
-          {
-            text: 'OK',
-            onPress: () => {
-              setUser(updatedUser);
-              setProfileImage(data.user.profilePicture);
-              setNewImageUri(null);
+        showAlert(
+          'Success! 🎉',
+          'Your profile has been updated successfully',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setUser(updatedUser);
+                setProfileImage(data.user.profilePicture);
+                setNewImageUri(null);
+              }
             }
-          }
-        ]);
+          ],
+          { type: 'success' }
+        );
       } else {
         const error = await response.json();
-        Alert.alert('Error', error.error || 'Failed to update profile');
+        showAlert(
+          'Update Failed',
+          error.error || 'Failed to update profile',
+          [{ text: 'OK' }],
+          { type: 'error' }
+        );
       }
     } catch (error) {
       console.error('❌ Save profile error:', error);
-      Alert.alert('Error', 'Failed to update profile');
+      showAlert(
+        'Connection Error',
+        'Unable to save changes. Please check your internet connection.',
+        [{ text: 'OK' }],
+        { type: 'error' }
+      );
     } finally {
       setSaving(false);
     }
@@ -283,7 +327,7 @@ export default function ProfileScreen({ navigation }) {
                 <Text style={styles.cameraIconText}>📷</Text>
               </View>
             </TouchableOpacity>
-            <Text style={styles.profileImageHint}>Tap to change picture </Text>
+            <Text style={styles.profileImageHint}>Tap to change picture</Text>
             {newImageUri && (
               <Text style={styles.unsavedChanges}>• Unsaved changes</Text>
             )}
@@ -292,7 +336,7 @@ export default function ProfileScreen({ navigation }) {
           {/* User Info Card */}
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>User Type </Text>
+              <Text style={styles.infoLabel}>User Type</Text>
               <View style={styles.userTypeBadge}>
                 <Text style={styles.userTypeText}>
                   {user?.userType === 'rider' ? '👤 Rider' : '🚗 Driver'}
@@ -301,7 +345,7 @@ export default function ProfileScreen({ navigation }) {
             </View>
 
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Gender </Text>
+              <Text style={styles.infoLabel}>Gender</Text>
               <Text style={styles.infoValue}>
                 {user?.gender === 'male' ? '👨 Male' : 
                  user?.gender === 'female' ? '👩 Female' : 'Not specified'}
@@ -309,7 +353,7 @@ export default function ProfileScreen({ navigation }) {
             </View>
 
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Member Since </Text>
+              <Text style={styles.infoLabel}>Member Since</Text>
               <Text style={styles.infoValue}>
                 {new Date(user?.createdAt).toLocaleDateString()}
               </Text>
@@ -317,14 +361,14 @@ export default function ProfileScreen({ navigation }) {
 
             {user?.rating && (
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Rating </Text>
+                <Text style={styles.infoLabel}>Rating</Text>
                 <Text style={styles.infoValue}>⭐ {user.rating.toFixed(1)}</Text>
               </View>
             )}
 
             {user?.totalRides !== undefined && (
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Total Rides </Text>
+                <Text style={styles.infoLabel}>Total Rides</Text>
                 <Text style={styles.infoValue}>{user.totalRides} rides</Text>
               </View>
             )}
@@ -369,7 +413,7 @@ export default function ProfileScreen({ navigation }) {
               <>
                 <Text style={[styles.formTitle, { marginTop: 20 }]}>
                   Vehicle Information
-                  </Text>
+                </Text>
 
                 <Text style={styles.label}>Vehicle Model *</Text>
                 <TextInput
@@ -490,10 +534,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: COLORS.primary
   },
-  cameraIconText: { fontSize: 18,
-    paddingLeft: 2,
-    paddingBottom: 3,
-   },
+  cameraIconText: { fontSize: 18, paddingLeft: 2, paddingBottom: 3 },
   profileImageHint: {
     fontSize: 14,
     color: COLORS.text,

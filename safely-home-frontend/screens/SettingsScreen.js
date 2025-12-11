@@ -1,4 +1,5 @@
 // safely-home-frontend/screens/SettingsScreen.js
+// ✅ WITH CUSTOM ALERTS
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -7,13 +8,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Switch,
-  Alert
+  Switch
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../config';
 import { logout } from '../services/api';
+import { showAlert } from '../components/CustomAlert';
 
 export default function SettingsScreen({ navigation }) {
   const [notifications, setNotifications] = useState(true);
@@ -57,9 +58,9 @@ export default function SettingsScreen({ navigation }) {
   };
 
   const handleClearCache = () => {
-    Alert.alert(
+    showAlert(
       'Clear Cache',
-      'This will clear all cached data. Continue?',
+      'This will clear all cached data from the app. Your account and ride history will not be affected. Continue?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -67,47 +68,106 @@ export default function SettingsScreen({ navigation }) {
           style: 'destructive',
           onPress: async () => {
             // Clear cache logic here
-            Alert.alert('Success', 'Cache cleared successfully');
+            showAlert(
+              'Cache Cleared',
+              'All cached data has been cleared successfully',
+              [{ text: 'OK' }],
+              { type: 'success' }
+            );
           }
         }
-      ]
+      ],
+      { type: 'warning' }
     );
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'Are you sure? This action cannot be undone. All your data will be permanently deleted.',
+    showAlert(
+      '⚠️ Delete Account',
+      'This action cannot be undone. All your data, including ride history and profile information, will be permanently deleted.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: 'Continue',
           style: 'destructive',
           onPress: () => {
-            Alert.alert(
-              'Confirm Deletion',
-              'Type DELETE to confirm account deletion',
+            showAlert(
+              'Final Confirmation',
+              'Are you absolutely sure? This will permanently delete your account and all associated data.',
               [
                 { text: 'Cancel', style: 'cancel' },
                 {
-                  text: 'Proceed',
+                  text: 'Delete My Account',
                   style: 'destructive',
                   onPress: async () => {
                     // Account deletion logic
                     await logout();
-                    navigation.replace('Login');
+                    showAlert(
+                      'Account Deleted',
+                      'Your account has been permanently deleted. We\'re sorry to see you go.',
+                      [
+                        { 
+                          text: 'OK', 
+                          onPress: () => navigation.replace('Login') 
+                        }
+                      ],
+                      { type: 'info', cancelable: false }
+                    );
                   }
                 }
-              ]
+              ],
+              { type: 'error' }
             );
           }
         }
-      ]
+      ],
+      { type: 'error' }
     );
   };
 
-  const SettingRow = ({ icon, label, value, onValueChange, type = 'switch' }) => (
-    <View style={styles.settingRow}>
+  const handlePasswordChange = () => {
+    showAlert(
+      'Change Password',
+      'Password change feature coming soon. Please contact support if you need to reset your password.',
+      [{ text: 'OK' }],
+      { type: 'info' }
+    );
+  };
+
+  const handlePrivacyPolicy = () => {
+    showAlert(
+      'Privacy Policy',
+      'View our complete privacy policy on our website or contact support for more information.',
+      [{ text: 'OK' }],
+      { type: 'info' }
+    );
+  };
+
+  const handleTermsOfService = () => {
+    showAlert(
+      'Terms of Service',
+      'View our complete terms of service on our website or contact support for more information.',
+      [{ text: 'OK' }],
+      { type: 'info' }
+    );
+  };
+
+  const handleAbout = () => {
+    showAlert(
+      'About Safely Home',
+      'Safely Home v1.0.0\n\nA gender-safe ride-sharing platform prioritizing your safety and comfort.\n\nFor support, contact:\nsupport@safelyhome.com',
+      [{ text: 'OK' }],
+      { type: 'info' }
+    );
+  };
+
+  const SettingRow = ({ icon, label, value, onValueChange, type = 'switch', onPress }) => (
+    <TouchableOpacity 
+      style={styles.settingRow}
+      onPress={type === 'link' ? onPress : undefined}
+      disabled={type === 'switch'}
+      activeOpacity={type === 'link' ? 0.7 : 1}
+    >
       <View style={styles.settingLeft}>
         <Text style={styles.settingIcon}>{icon}</Text>
         <Text style={styles.settingLabel}>{label}</Text>
@@ -119,10 +179,12 @@ export default function SettingsScreen({ navigation }) {
           trackColor={{ false: '#767577', true: COLORS.accent }}
           thumbColor={value ? COLORS.accent : '#f4f3f4'}
         />
+      ) : type === 'text' ? (
+        <Text style={styles.versionText}>{value}</Text>
       ) : (
         <Text style={styles.settingArrow}>›</Text>
       )}
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -177,71 +239,64 @@ export default function SettingsScreen({ navigation }) {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Privacy & Security</Text>
 
-          <TouchableOpacity style={styles.settingRow} onPress={() => navigation.navigate('GenderPreference')}>
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingIcon}>🚗</Text>
-              <Text style={styles.settingLabel}>Driver Preference</Text>
-            </View>
-            <Text style={styles.settingArrow}>›</Text>
-          </TouchableOpacity>
+          <SettingRow
+            icon="🚗"
+            label="Driver Preference"
+            type="link"
+            onPress={() => navigation.navigate('GenderPreference')}
+          />
 
-          <TouchableOpacity style={styles.settingRow}>
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingIcon}>🔒</Text>
-              <Text style={styles.settingLabel}>Change Password</Text>
-            </View>
-            <Text style={styles.settingArrow}>›</Text>
-          </TouchableOpacity>
+          <SettingRow
+            icon="🔒"
+            label="Change Password"
+            type="link"
+            onPress={handlePasswordChange}
+          />
 
-          <TouchableOpacity style={styles.settingRow}>
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingIcon}>🛡️</Text>
-              <Text style={styles.settingLabel}>Privacy Policy</Text>
-            </View>
-            <Text style={styles.settingArrow}>›</Text>
-          </TouchableOpacity>
+          <SettingRow
+            icon="🛡️"
+            label="Privacy Policy"
+            type="link"
+            onPress={handlePrivacyPolicy}
+          />
         </View>
 
         {/* App Info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>App Information</Text>
 
-          <TouchableOpacity style={styles.settingRow}>
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingIcon}>📄</Text>
-              <Text style={styles.settingLabel}>Terms of Service</Text>
-            </View>
-            <Text style={styles.settingArrow}>›</Text>
-          </TouchableOpacity>
+          <SettingRow
+            icon="📄"
+            label="Terms of Service"
+            type="link"
+            onPress={handleTermsOfService}
+          />
 
-          <TouchableOpacity style={styles.settingRow}>
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingIcon}>ℹ️</Text>
-              <Text style={styles.settingLabel}>About Safely Home</Text>
-            </View>
-            <Text style={styles.settingArrow}>›</Text>
-          </TouchableOpacity>
+          <SettingRow
+            icon="ℹ️"
+            label="About Safely Home"
+            type="link"
+            onPress={handleAbout}
+          />
 
-          <View style={styles.settingRow}>
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingIcon}>📱</Text>
-              <Text style={styles.settingLabel}>App Version</Text>
-            </View>
-            <Text style={styles.versionText}>1.0.0</Text>
-          </View>
+          <SettingRow
+            icon="📱"
+            label="App Version"
+            type="text"
+            value="1.0.0"
+          />
         </View>
 
         {/* Data & Storage */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Data & Storage</Text>
 
-          <TouchableOpacity style={styles.settingRow} onPress={handleClearCache}>
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingIcon}>🗑️</Text>
-              <Text style={styles.settingLabel}>Clear Cache</Text>
-            </View>
-            <Text style={styles.settingArrow}>›</Text>
-          </TouchableOpacity>
+          <SettingRow
+            icon="🗑️"
+            label="Clear Cache"
+            type="link"
+            onPress={handleClearCache}
+          />
         </View>
 
         {/* Danger Zone */}

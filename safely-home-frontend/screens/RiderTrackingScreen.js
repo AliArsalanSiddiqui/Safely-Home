@@ -1,17 +1,20 @@
+// safely-home-frontend/screens/RiderTrackingScreen.js
+// ✅ WITH CUSTOM ALERTS
+
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, API_URL } from '../config';
 import { cancelRide } from '../services/api';
 import socketService from '../services/socket';
 import { makePhoneCall, makeEmergencyCall } from '../services/phoneUtils';
+import { showAlert } from '../components/CustomAlert';
 
 export default function RiderTrackingScreen({ navigation, route }) {
   const params = route.params || {};
   const rideId = params.rideId;
   const driver = params.driver || {};
   
-  // ✅ FIXED: Accept both route params and fetched data
   const [pickupLocation, setPickupLocation] = useState(params.pickup || '');
   const [destinationLocation, setDestinationLocation] = useState(params.destination || '');
   
@@ -62,7 +65,6 @@ export default function RiderTrackingScreen({ navigation, route }) {
     }
   };
 
-  // ✅ NEW: Fetch ride details to get pickup and destination if not in params
   const fetchRideDetails = async () => {
     if (!rideId) {
       setLoading(false);
@@ -95,7 +97,6 @@ export default function RiderTrackingScreen({ navigation, route }) {
         
         setRideDetails(ride);
         
-        // ✅ Update locations from API if not already set
         if (!pickupLocation && ride?.pickup?.address) {
           setPickupLocation(ride.pickup.address);
         }
@@ -112,26 +113,52 @@ export default function RiderTrackingScreen({ navigation, route }) {
 
   const setupSocketListeners = () => {
     socketService.on('rideCompleted', (data) => {
-      Alert.alert('Trip Completed! 🎉', 'How was your experience?', [
-        { text: 'Rate Trip', onPress: () => navigation.replace('Rating', { rideId, driver }) }
-      ], { cancelable: false });
+      showAlert(
+        'Trip Completed! 🎉',
+        'Thank you for riding with Safely Home. How was your experience?',
+        [
+          { 
+            text: 'Rate Trip', 
+            onPress: () => navigation.replace('Rating', { rideId, driver }) 
+          }
+        ],
+        { type: 'success', cancelable: false }
+      );
     });
 
     socketService.on('rideCancelled', (data) => {
-      Alert.alert('Ride Cancelled', 'Driver cancelled the ride', [
-        { text: 'OK', onPress: () => navigation.replace('RiderHome') }
-      ]);
+      showAlert(
+        'Ride Cancelled',
+        'The driver has cancelled this ride. We apologize for the inconvenience.',
+        [
+          { 
+            text: 'Find Another Ride', 
+            onPress: () => navigation.replace('RiderHome') 
+          }
+        ],
+        { type: 'warning', cancelable: false }
+      );
     });
 
     socketService.on('rideStatusUpdate', (data) => {
       if (data.status === 'arrived') {
         setStatus('🎯 Driver has arrived!');
         setArrivalTime('Now');
-        Alert.alert('Driver Arrived', 'Your driver is waiting at the pickup location');
+        showAlert(
+          'Driver Arrived',
+          'Your driver is waiting at the pickup location',
+          [{ text: 'OK' }],
+          { type: 'success' }
+        );
       } else if (data.status === 'started') {
         setStatus('🚀 Trip in progress');
         setArrivalTime('En route');
-        Alert.alert('Trip Started', 'You are on your way to the destination');
+        showAlert(
+          'Trip Started',
+          'You are now on your way to the destination. Have a safe trip!',
+          [{ text: 'OK' }],
+          { type: 'success' }
+        );
       }
     });
 
@@ -143,11 +170,12 @@ export default function RiderTrackingScreen({ navigation, route }) {
   };
 
   const handleCallDriver = () => {
-  makePhoneCall(driver?.phone, driver?.name || 'Driver');
-};
+    makePhoneCall(driver?.phone, driver?.name || 'Driver');
+  };
+
   const handleEmergency = () => {
-  makeEmergencyCall();
-};
+    makeEmergencyCall();
+  };
 
   const handleOpenChat = () => {
     setUnreadMessages(0);
@@ -159,32 +187,56 @@ export default function RiderTrackingScreen({ navigation, route }) {
   };
 
   const handleCancelRide = () => {
-    Alert.alert('Cancel Ride', 'Are you sure you want to cancel this ride?', [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Yes, Cancel',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await cancelRide(rideId);
-            navigation.replace('RiderHome');
-          } catch (error) {
-            Alert.alert('Error', 'Failed to cancel ride');
+    showAlert(
+      'Cancel Ride',
+      'Are you sure you want to cancel this ride? This may affect your rider rating.',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelRide(rideId);
+              showAlert(
+                'Ride Cancelled',
+                'Your ride has been cancelled successfully',
+                [{ text: 'OK', onPress: () => navigation.replace('RiderHome') }],
+                { type: 'info' }
+              );
+            } catch (error) {
+              showAlert(
+                'Cancellation Failed',
+                'Failed to cancel ride. Please try again or contact support.',
+                [{ text: 'OK' }],
+                { type: 'error' }
+              );
+            }
           }
         }
-      }
-    ]);
+      ],
+      { type: 'warning' }
+    );
   };
 
   const handleReportIssue = () => {
     navigation.navigate('ReportIssue', { rideId, driver });
   };
 
+  const handleBackPress = () => {
+    showAlert(
+      'Ride in Progress',
+      'You have an active ride. Please complete or cancel the ride before leaving this screen.',
+      [{ text: 'OK' }],
+      { type: 'info' }
+    );
+  };
+
   if (loading && !pickupLocation) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={handleBackPress}>
             <Text style={styles.backButton}>←</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Track Your Ride</Text>
@@ -201,7 +253,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => Alert.alert('Ride in Progress', 'Please complete or cancel the ride first')}>
+        <TouchableOpacity onPress={handleBackPress}>
           <Text style={styles.backButton}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Track Your Ride</Text>
@@ -210,11 +262,11 @@ export default function RiderTrackingScreen({ navigation, route }) {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.statusContainer}>
-          <Text style={styles.arrivalTime}>Arriving in {arrivalTime} </Text>
+          <Text style={styles.arrivalTime}>Arriving in {arrivalTime}</Text>
           <View style={styles.navigationIcon}>
             <Text style={styles.navigationIconText}>🧭</Text>
           </View>
-          <Text style={styles.statusText}>{status} </Text>
+          <Text style={styles.statusText}>{status}</Text>
         </View>
 
         <View style={styles.driverCard}>
@@ -225,11 +277,12 @@ export default function RiderTrackingScreen({ navigation, route }) {
               </Text>
             </View>
             <View style={styles.driverDetails}>
-              <Text style={styles.driverName}>{driver?.name || 'Driver'} </Text>
+              <Text style={styles.driverName}>{driver?.name || 'Driver'}</Text>
               <View style={styles.ratingContainer}>
                 <Text style={styles.ratingStar}>⭐</Text>
                 <Text style={styles.ratingText}>
-                  {driver?.rating ? Number(driver.rating).toFixed(1) : '0.0'} • ({driver?.totalRides || 0}) rides </Text>
+                  {driver?.rating ? Number(driver.rating).toFixed(1) : '0.0'} • ({driver?.totalRides || 0}) rides
+                </Text>
               </View>
               <Text style={styles.genderText}>
                 {driver?.gender === 'female' ? '👩 Female Driver' : '👨 Male Driver'}
@@ -259,13 +312,15 @@ export default function RiderTrackingScreen({ navigation, route }) {
                 </View>
               )}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton} onPress={() => Alert.alert('Share', 'Sharing ride details...')}>
+            <TouchableOpacity 
+              style={styles.actionButton} 
+              onPress={() => showAlert('Share Ride', 'Share ride details with your contacts for safety', [{ text: 'OK' }], { type: 'info' })}
+            >
               <Text style={styles.actionIcon}>📤</Text>
               <Text style={styles.actionLabel}>Share</Text>
             </TouchableOpacity>
           </View>
 
-          
           <View style={styles.tripInfo}>
             <View style={styles.tripRow}>
               <Text style={styles.tripIcon}>📍</Text>
@@ -287,18 +342,18 @@ export default function RiderTrackingScreen({ navigation, route }) {
           {rideDetails && (
             <View style={styles.rideDetailsCard}>
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>💰 Fare </Text>
+                <Text style={styles.detailLabel}>💰 Fare</Text>
                 <Text style={styles.detailValue}>{rideDetails.fare?.toFixed(2) || '0.00'} pkr</Text>
               </View>
               {rideDetails.distance && (
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>📍 Distance </Text>
+                  <Text style={styles.detailLabel}>📍 Distance</Text>
                   <Text style={styles.detailValue}>{rideDetails.distance.toFixed(2)} km</Text>
                 </View>
               )}
               {rideDetails.estimatedTime && (
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>⏱️ ETA </Text>
+                  <Text style={styles.detailLabel}>⏱️ ETA</Text>
                   <Text style={styles.detailValue}>{rideDetails.estimatedTime} mins</Text>
                 </View>
               )}

@@ -1,4 +1,5 @@
 // safely-home-frontend/screens/SupportScreen.js
+// ✅ WITH CUSTOM ALERTS
 
 import React, { useState } from 'react';
 import {
@@ -8,12 +9,12 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  Alert,
   Linking,
   ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../config';
+import { showAlert } from '../components/CustomAlert';
 
 export default function SupportScreen({ navigation }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -54,12 +55,22 @@ export default function SupportScreen({ navigation }) {
 
   const handleSubmit = async () => {
     if (!selectedCategory) {
-      Alert.alert('Error', 'Please select a category');
+      showAlert(
+        'Category Required',
+        'Please select a category for your support request',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
       return;
     }
 
     if (!message.trim()) {
-      Alert.alert('Error', 'Please describe your issue');
+      showAlert(
+        'Description Required',
+        'Please describe your issue so we can help you better',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
       return;
     }
 
@@ -69,9 +80,9 @@ export default function SupportScreen({ navigation }) {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      Alert.alert(
-        'Support Request Sent',
-        'Thank you for contacting us. Our team will respond within 24-48 hours.',
+      showAlert(
+        'Request Submitted ✓',
+        'Thank you for contacting us. Our support team will respond to your request within 24-48 hours via email.',
         [
           {
             text: 'OK',
@@ -80,31 +91,58 @@ export default function SupportScreen({ navigation }) {
               setSelectedCategory(null);
             }
           }
-        ]
+        ],
+        { type: 'success' }
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to send support request. Please try again.');
+      showAlert(
+        'Submission Failed',
+        'Failed to send support request. Please try again or contact us directly.',
+        [{ text: 'OK' }],
+        { type: 'error' }
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleCall = () => {
-    const phoneNumber = 'tel:1234567890';
+    const phoneNumber = 'tel:+923332859061';
     Linking.canOpenURL(phoneNumber)
       .then((supported) => {
         if (supported) {
           return Linking.openURL(phoneNumber);
         } else {
-          Alert.alert('Error', 'Phone dialer is not available');
+          showAlert(
+            'Phone Not Available',
+            'Phone dialer is not available on this device. Please call: +92 (333) 2859061',
+            [{ text: 'OK' }],
+            { type: 'error' }
+          );
         }
       })
-      .catch((err) => console.error('Error opening phone:', err));
+      .catch((err) => {
+        console.error('Error opening phone:', err);
+        showAlert(
+          'Error',
+          'Failed to open phone dialer',
+          [{ text: 'OK' }],
+          { type: 'error' }
+        );
+      });
   };
 
   const handleEmail = () => {
     const email = 'mailto:support@safelyhome.com?subject=Support Request';
-    Linking.openURL(email).catch((err) => console.error('Error opening email:', err));
+    Linking.openURL(email).catch((err) => {
+      console.error('Error opening email:', err);
+      showAlert(
+        'Email Not Available',
+        'Email client is not available. Please email us at: support@safelyhome.com',
+        [{ text: 'OK' }],
+        { type: 'error' }
+      );
+    });
   };
 
   const FAQItem = ({ item }) => {

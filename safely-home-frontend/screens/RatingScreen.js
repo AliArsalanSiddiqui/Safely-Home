@@ -1,7 +1,11 @@
+// safely-home-frontend/screens/RatingScreen.js
+// ✅ WITH CUSTOM ALERTS
+
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, Alert, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { COLORS } from '../config';
 import { rateRide } from '../services/api';
+import { showAlert } from '../components/CustomAlert';
 
 export default function RatingScreen({ navigation, route }) {
   const { rideId, driver } = route.params || {};
@@ -11,12 +15,12 @@ export default function RatingScreen({ navigation, route }) {
   const [loading, setLoading] = useState(false);
 
   const tags = [
-    { id: 1, label: '🚗 Clean Vehicle ' },
-    { id: 2, label: '🛡️ Safe Driving ' },
-    { id: 3, label: '😊 Friendly Driver ' },
-    { id: 4, label: '⏰ On Time ' },
+    { id: 1, label: '🚗 Clean Vehicle' },
+    { id: 2, label: '🛡️ Safe Driving' },
+    { id: 3, label: '😊 Friendly Driver' },
+    { id: 4, label: '⏰ On Time' },
     { id: 5, label: '🗺️ Good Route' },
-    { id: 6, label: '💼 Professional ' },
+    { id: 6, label: '💼 Professional' },
   ];
 
   const toggleTag = (tagId) => {
@@ -29,7 +33,12 @@ export default function RatingScreen({ navigation, route }) {
 
   const handleSubmit = async () => {
     if (rating === 0) {
-      Alert.alert('Required', 'Please select a star rating');
+      showAlert(
+        'Rating Required',
+        'Please select a star rating to continue',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
       return;
     }
 
@@ -42,22 +51,43 @@ export default function RatingScreen({ navigation, route }) {
         comments: comment
       });
 
-      Alert.alert(
+      showAlert(
         'Thank You! 🎉',
-        'Your feedback helps us maintain quality service',
+        'Your feedback helps us maintain quality service and improve our drivers\' performance.',
         [
           { 
             text: 'Done', 
             onPress: () => navigation.replace('RiderHome') 
           }
-        ]
+        ],
+        { type: 'success', cancelable: false }
       );
     } catch (error) {
       console.error('Rating error:', error);
-      Alert.alert('Error', error.response?.data?.error || 'Failed to submit rating. Please try again.');
+      showAlert(
+        'Submission Failed',
+        error.response?.data?.error || 'Failed to submit rating. Please try again.',
+        [{ text: 'OK' }],
+        { type: 'error' }
+      );
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSkip = () => {
+    showAlert(
+      'Skip Rating?',
+      'Your feedback helps improve our service and assists other riders in choosing drivers.',
+      [
+        { text: 'Rate Now', style: 'cancel' },
+        { 
+          text: 'Skip', 
+          onPress: () => navigation.replace('RiderHome') 
+        }
+      ],
+      { type: 'info' }
+    );
   };
 
   return (
@@ -81,12 +111,12 @@ export default function RatingScreen({ navigation, route }) {
               {driver?.name?.split(' ').map(n => n[0]).join('') || 'D'}
             </Text>
           </View>
-          <Text style={styles.driverName}>{driver?.name || 'Your Driver'} </Text>
+          <Text style={styles.driverName}>{driver?.name || 'Your Driver'}</Text>
           <View style={styles.driverStats}>
-            <Text style={styles.driverStat}>⭐ {driver.rating || '4.9 '} </Text>
-            <Text style={styles.driverStat}>• ({driver.totalRides || 0 }) trips </Text>
+            <Text style={styles.driverStat}>⭐ {driver.rating || '4.9'}</Text>
+            <Text style={styles.driverStat}>• ({driver.totalRides || 0}) trips</Text>
           </View>
-          <Text style={styles.tripId}>Trip #{rideId?.slice(-6) || 'XXXXX'} </Text>
+          <Text style={styles.tripId}>Trip #{rideId?.slice(-6) || 'XXXXX'}</Text>
         </View>
 
         <View style={styles.ratingSection}>
@@ -106,7 +136,7 @@ export default function RatingScreen({ navigation, route }) {
             ))}
           </View>
           <Text style={styles.ratingLabel}>
-            {rating === 0 && 'Tap to rate'} 
+            {rating === 0 && 'Tap to rate'}
             {rating === 1 && 'Poor'}
             {rating === 2 && 'Fair'}
             {rating === 3 && 'Good'}
@@ -162,18 +192,9 @@ export default function RatingScreen({ navigation, route }) {
 
         <TouchableOpacity
           style={styles.skipButton}
-          onPress={() => {
-            Alert.alert(
-              'Skip Rating?',
-              'Your feedback helps improve our service',
-              [
-                { text: 'Rate Now', style: 'cancel' },
-                { text: 'Skip', onPress: () => navigation.replace('RiderHome') }
-              ]
-            );
-          }}
+          onPress={handleSkip}
         >
-          <Text style={styles.skipButtonText}>Skip for Now </Text>
+          <Text style={styles.skipButtonText}>Skip for Now</Text>
         </TouchableOpacity>
 
         <View style={{ height: 30 }} />

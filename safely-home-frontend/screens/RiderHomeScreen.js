@@ -1,5 +1,5 @@
 // safely-home-frontend/screens/RiderHomeScreen.js
-// ✅ COMPLETE - WITH ACTIVE RIDE BANNER
+// ✅ WITH CUSTOM ALERTS
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -8,7 +8,6 @@ import {
   TouchableOpacity, 
   StyleSheet, 
   Image, 
-  Alert, 
   ScrollView, 
   RefreshControl,
   ActivityIndicator
@@ -19,6 +18,7 @@ import { COLORS, API_URL } from '../config';
 import { logout } from '../services/api';
 import Sidebar from '../components/Sidebar';
 import socketService from '../services/socket';
+import { showAlert } from '../components/CustomAlert';
 
 export default function RiderHomeScreen({ navigation }) {
   const [user, setUser] = useState(null);
@@ -82,7 +82,7 @@ export default function RiderHomeScreen({ navigation }) {
         const data = await response.json();
         
         if (data.activeRide) {
-          console.log('✅ Active ride found:', data.activeRide._id);
+          console.log('✅ Active ride found in sidebar:', data.activeRide._id);
           setActiveRide(data.activeRide);
         } else {
           console.log('ℹ️ No active ride');
@@ -140,17 +140,23 @@ export default function RiderHomeScreen({ navigation }) {
   };
 
   const handleLogout = async () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        onPress: async () => {
-          await logout();
-          socketService.disconnect();
-          navigation.replace('Login');
+    showAlert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            socketService.disconnect();
+            navigation.replace('Login');
+          }
         }
-      }
-    ]);
+      ],
+      { type: 'warning' }
+    );
   };
 
   return (
@@ -179,7 +185,7 @@ export default function RiderHomeScreen({ navigation }) {
         userType="rider"
       />
 
-      {/* ✅ ACTIVE RIDE BANNER */}
+      {/* Active Ride Banner */}
       {checkingRide ? (
         <View style={styles.activeRideBanner}>
           <ActivityIndicator color={COLORS.accent} size="small" />
@@ -319,7 +325,6 @@ const styles = StyleSheet.create({
   logoutButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.light, justifyContent: 'center', alignItems: 'center' },
   logoutText: { fontSize: 20 },
 
-  // Active Ride Banner
   activeRideBanner: {
     backgroundColor: COLORS.accent,
     marginHorizontal: 20,
