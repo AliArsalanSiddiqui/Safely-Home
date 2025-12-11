@@ -1,5 +1,5 @@
 // safely-home-frontend/screens/DriverRegistrationScreen.js
-// ✅ ENHANCED: Custom Alerts + Show Password + Real-time Password Strength + Better Error Handling
+// ✅ COMPLETE VALIDATION: Inline errors + Real-time validation + Custom Alerts
 
 import React, { useState } from 'react';
 import { 
@@ -11,6 +11,8 @@ import { COLORS } from '../config';
 import { register } from '../services/api';
 import { showAlert } from '../components/CustomAlert';
 
+const ERROR_COLOR = '#F44336';
+
 export default function DriverRegistrationScreen({ navigation }) {
   const [formData, setFormData] = useState({
     name: '', email: '', phone: '', password: '', confirmPassword: '',
@@ -20,14 +22,99 @@ export default function DriverRegistrationScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Inline error states
+  const [errors, setErrors] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    password: '',
+    confirmPassword: '',
+    gender: '',
+    licensePlate: '',
+    vehicleModel: '',
+    faceImage: ''
+  });
+  
+  const [touched, setTouched] = useState({
+    name: false,
+    email: false,
+    phone: false,
+    password: false,
+    confirmPassword: false,
+    gender: false,
+    licensePlate: false,
+    vehicleModel: false,
+    faceImage: false
+  });
+
   const [passwordStrength, setPasswordStrength] = useState({ strength: '', color: '', text: '' });
 
-  const updateField = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  // Validation functions
+  const validateName = (value) => {
+    if (!value.trim()) return 'Name is required';
+    if (value.trim().length < 3) return 'Name must be at least 3 characters';
+    return '';
+  };
+
+  const validateEmail = (value) => {
+    if (!value.trim()) return 'Email is required';
+    if (!value.includes('@')) return 'Email must contain @';
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(value.trim())) return 'Please enter a valid email (e.g., user@example.com)';
+    return '';
+  };
+
+  const validatePhone = (value) => {
+    if (!value.trim()) return 'Phone number is required';
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length < 10) return 'Phone number must be at least 10 digits';
+    return '';
+  };
+
+  const validatePassword = (value) => {
+    if (!value) return 'Password is required';
+    if (value.length < 8) return 'Password must be at least 8 characters';
     
-    if (field === 'password') {
-      checkPasswordStrength(value);
-    }
+    const hasUpperCase = /[A-Z]/.test(value);
+    const hasLowerCase = /[a-z]/.test(value);
+    const hasNumbers = /\d/.test(value);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(value);
+    
+    if (!hasUpperCase) return 'Password must contain at least one uppercase letter';
+    if (!hasLowerCase) return 'Password must contain at least one lowercase letter';
+    if (!hasNumbers) return 'Password must contain at least one number';
+    if (!hasSpecialChar) return 'Password must contain at least one special character';
+    
+    return '';
+  };
+
+  const validateConfirmPassword = (value) => {
+    if (!value) return 'Please confirm your password';
+    if (value !== formData.password) return 'Passwords do not match';
+    return '';
+  };
+
+  const validateGender = (value) => {
+    if (!value) return 'Please select your gender';
+    return '';
+  };
+
+  const validateLicensePlate = (value) => {
+    if (!value.trim()) return 'License plate number is required';
+    if (value.trim().length < 3) return 'License plate must be at least 3 characters';
+    return '';
+  };
+
+  const validateVehicleModel = (value) => {
+    if (!value.trim()) return 'Vehicle model is required';
+    if (value.trim().length < 3) return 'Vehicle model must be at least 3 characters';
+    return '';
+  };
+
+  const validateFaceImage = (value) => {
+    if (!value) return 'Face photo is required for driver verification';
+    return '';
   };
 
   const checkPasswordStrength = (password) => {
@@ -66,6 +153,57 @@ export default function DriverRegistrationScreen({ navigation }) {
     }
   };
 
+  const handleFieldChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    
+    if (field === 'password') {
+      checkPasswordStrength(value);
+    }
+    
+    // Validate on change if field was already touched
+    if (touched[field]) {
+      let error = '';
+      switch(field) {
+        case 'name': error = validateName(value); break;
+        case 'email': error = validateEmail(value); break;
+        case 'phone': error = validatePhone(value); break;
+        case 'password': error = validatePassword(value); break;
+        case 'confirmPassword': error = validateConfirmPassword(value); break;
+        case 'gender': error = validateGender(value); break;
+        case 'licensePlate': error = validateLicensePlate(value); break;
+        case 'vehicleModel': error = validateVehicleModel(value); break;
+        case 'faceImage': error = validateFaceImage(value); break;
+      }
+      setErrors(prev => ({ ...prev, [field]: error }));
+    }
+    
+    // Also revalidate confirm password if password changes
+    if (field === 'password' && touched.confirmPassword) {
+      setErrors(prev => ({ 
+        ...prev, 
+        confirmPassword: validateConfirmPassword(formData.confirmPassword) 
+      }));
+    }
+  };
+
+  const handleBlur = (field) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    
+    let error = '';
+    switch(field) {
+      case 'name': error = validateName(formData.name); break;
+      case 'email': error = validateEmail(formData.email); break;
+      case 'phone': error = validatePhone(formData.phone); break;
+      case 'password': error = validatePassword(formData.password); break;
+      case 'confirmPassword': error = validateConfirmPassword(formData.confirmPassword); break;
+      case 'gender': error = validateGender(formData.gender); break;
+      case 'licensePlate': error = validateLicensePlate(formData.licensePlate); break;
+      case 'vehicleModel': error = validateVehicleModel(formData.vehicleModel); break;
+      case 'faceImage': error = validateFaceImage(formData.faceImage); break;
+    }
+    setErrors(prev => ({ ...prev, [field]: error }));
+  };
+
   const pickImage = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
@@ -86,171 +224,89 @@ export default function DriverRegistrationScreen({ navigation }) {
     });
 
     if (!result.canceled) {
-      updateField('faceImage', result.assets[0].uri);
+      handleFieldChange('faceImage', result.assets[0].uri);
+      handleBlur('faceImage');
     }
   };
 
-  const validateForm = () => {
-    // Name validation
-    if (!formData.name.trim()) {
-      showAlert(
-        'Missing Information',
-        'Please enter your full name',
-        [{ text: 'OK' }],
-        { type: 'warning' }
-      );
-      return false;
-    }
-
-    if (formData.name.trim().length < 3) {
-      showAlert(
-        'Invalid Name',
-        'Name must be at least 3 characters long',
-        [{ text: 'OK' }],
-        { type: 'warning' }
-      );
-      return false;
-    }
-
-    // Email validation
-    if (!formData.email.trim()) {
-      showAlert(
-        'Missing Information',
-        'Please enter your email address',
-        [{ text: 'OK' }],
-        { type: 'warning' }
-      );
-      return false;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email.trim())) {
-      showAlert(
-        'Invalid Email',
-        'Please enter a valid email address',
-        [{ text: 'OK' }],
-        { type: 'error' }
-      );
-      return false;
-    }
-
-    // Phone validation
-    if (!formData.phone.trim()) {
-      showAlert(
-        'Missing Information',
-        'Please enter your phone number',
-        [{ text: 'OK' }],
-        { type: 'warning' }
-      );
-      return false;
-    }
-
-    if (formData.phone.trim().length < 10) {
-      showAlert(
-        'Invalid Phone',
-        'Please enter a valid phone number (at least 10 digits)',
-        [{ text: 'OK' }],
-        { type: 'warning' }
-      );
-      return false;
-    }
-
-    // Gender validation
-    if (!formData.gender) {
-      showAlert(
-        'Missing Information',
-        'Please select your gender',
-        [{ text: 'OK' }],
-        { type: 'warning' }
-      );
-      return false;
-    }
-
-    // License validation
-    if (!formData.licensePlate.trim()) {
-      showAlert(
-        'Missing Information',
-        'Please enter your driver license number',
-        [{ text: 'OK' }],
-        { type: 'warning' }
-      );
-      return false;
-    }
-
-    // Vehicle validation
-    if (!formData.vehicleModel.trim()) {
-      showAlert(
-        'Missing Information',
-        'Please enter your vehicle model',
-        [{ text: 'OK' }],
-        { type: 'warning' }
-      );
-      return false;
-    }
-
-    // Face image validation
-    if (!formData.faceImage) {
-      showAlert(
-        'Face Verification Required',
-        'Please take a photo for face verification. This helps ensure passenger safety.',
-        [{ text: 'OK' }],
-        { type: 'warning' }
-      );
-      return false;
-    }
-
-    // Password validation
-    if (!formData.password) {
-      showAlert(
-        'Missing Information',
-        'Please enter a password',
-        [{ text: 'OK' }],
-        { type: 'warning' }
-      );
-      return false;
-    }
-
-    // Check password strength
-    const minLength = formData.password.length >= 8;
-    const hasUpperCase = /[A-Z]/.test(formData.password);
-    const hasLowerCase = /[a-z]/.test(formData.password);
-    const hasNumbers = /\d/.test(formData.password);
-    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(formData.password);
-
-    const errors = [];
-    if (!minLength) errors.push('• At least 8 characters');
-    if (!hasUpperCase) errors.push('• One uppercase letter (A-Z)');
-    if (!hasLowerCase) errors.push('• One lowercase letter (a-z)');
-    if (!hasNumbers) errors.push('• One number (0-9)');
-    if (!hasSpecialChar) errors.push('• One special character (!@#$%...)');
-
-    if (errors.length > 0) {
-      showAlert(
-        'Weak Password',
-        `Your password must contain:\n\n${errors.join('\n')}`,
-        [{ text: 'OK' }],
-        { type: 'error' }
-      );
-      return false;
-    }
-
-    // Confirm password
-    if (formData.password !== formData.confirmPassword) {
-      showAlert(
-        'Passwords Don\'t Match',
-        'The passwords you entered do not match. Please try again.',
-        [{ text: 'OK' }],
-        { type: 'error' }
-      );
-      return false;
-    }
-
-    return true;
+  const validateAllFields = () => {
+    const allErrors = {
+      name: validateName(formData.name),
+      email: validateEmail(formData.email),
+      phone: validatePhone(formData.phone),
+      gender: validateGender(formData.gender),
+      licensePlate: validateLicensePlate(formData.licensePlate),
+      vehicleModel: validateVehicleModel(formData.vehicleModel),
+      faceImage: validateFaceImage(formData.faceImage),
+      password: validatePassword(formData.password),
+      confirmPassword: validateConfirmPassword(formData.confirmPassword)
+    };
+    
+    setErrors(allErrors);
+    setTouched({
+      name: true,
+      email: true,
+      phone: true,
+      gender: true,
+      licensePlate: true,
+      vehicleModel: true,
+      faceImage: true,
+      password: true,
+      confirmPassword: true
+    });
+    
+    return allErrors;
   };
 
   const handleRegister = async () => {
-    if (!validateForm()) return;
+    const allErrors = validateAllFields();
+    
+    // Check if all fields are empty
+    const allFieldsEmpty = !formData.name.trim() && !formData.email.trim() && 
+                          !formData.phone.trim() && !formData.password && 
+                          !formData.confirmPassword && !formData.gender &&
+                          !formData.licensePlate.trim() && !formData.vehicleModel.trim() &&
+                          !formData.faceImage;
+    
+    if (allFieldsEmpty) {
+      showAlert(
+        'Missing Information',
+        'Please fill in all fields to continue',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
+      return;
+    }
+    
+    // Check for specific errors
+    const errorFields = Object.entries(allErrors)
+      .filter(([_, error]) => error !== '')
+      .map(([field]) => {
+        switch(field) {
+          case 'name': return 'Full Name';
+          case 'email': return 'Email';
+          case 'phone': return 'Phone Number';
+          case 'gender': return 'Gender';
+          case 'licensePlate': return 'License Plate';
+          case 'vehicleModel': return 'Vehicle Model';
+          case 'faceImage': return 'Face Photo';
+          case 'password': return 'Password';
+          case 'confirmPassword': return 'Confirm Password';
+          default: return field;
+        }
+      });
+    
+    if (errorFields.length > 0) {
+      showAlert(
+        'Incomplete Form',
+        `Please check the following ${errorFields.length === 1 ? 'field' : 'fields'}:\n\n• ${errorFields.join('\n• ')}`,
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
+      return;
+    }
 
+    // All validations passed
     setLoading(true);
     try {
       const userData = {
@@ -298,14 +354,6 @@ export default function DriverRegistrationScreen({ navigation }) {
           ],
           { type: 'warning' }
         );
-      } else if (error.response?.data?.details) {
-        const details = error.response.data.details;
-        showAlert(
-          'Registration Failed',
-          `Please fix the following:\n\n${details.join('\n')}`,
-          [{ text: 'OK' }],
-          { type: 'error' }
-        );
       } else if (error.customError === "Backend Inactive") {
         showAlert(
           'Server Unavailable',
@@ -351,46 +399,65 @@ export default function DriverRegistrationScreen({ navigation }) {
           {/* Full Name */}
           <Text style={styles.label}>Full Name *</Text>
           <TextInput 
-            style={styles.input} 
+            style={[styles.input, errors.name && touched.name && styles.inputError]} 
             placeholder="Enter your full name" 
             placeholderTextColor="#999" 
             value={formData.name} 
-            onChangeText={(v) => updateField('name', v)}
+            onChangeText={(v) => handleFieldChange('name', v)}
+            onBlur={() => handleBlur('name')}
             editable={!loading}
           />
+          {errors.name && touched.name && (
+            <Text style={styles.errorText}>{errors.name}</Text>
+          )}
 
           {/* Email */}
           <Text style={styles.label}>Email Address *</Text>
           <TextInput 
-            style={styles.input} 
+            style={[styles.input, errors.email && touched.email && styles.inputError]} 
             placeholder="Enter your email" 
             placeholderTextColor="#999" 
             value={formData.email} 
-            onChangeText={(v) => updateField('email', v)} 
+            onChangeText={(v) => handleFieldChange('email', v)}
+            onBlur={() => handleBlur('email')}
             keyboardType="email-address" 
             autoCapitalize="none"
             autoCorrect={false}
             editable={!loading}
           />
+          {errors.email && touched.email && (
+            <Text style={styles.errorText}>{errors.email}</Text>
+          )}
 
           {/* Phone */}
           <Text style={styles.label}>Phone Number *</Text>
           <TextInput 
-            style={styles.input} 
+            style={[styles.input, errors.phone && touched.phone && styles.inputError]} 
             placeholder="Enter your phone number" 
             placeholderTextColor="#999" 
             value={formData.phone} 
-            onChangeText={(v) => updateField('phone', v)} 
+            onChangeText={(v) => handleFieldChange('phone', v)}
+            onBlur={() => handleBlur('phone')}
             keyboardType="phone-pad"
             editable={!loading}
           />
+          {errors.phone && touched.phone && (
+            <Text style={styles.errorText}>{errors.phone}</Text>
+          )}
 
           {/* Gender */}
           <Text style={styles.label}>Gender *</Text>
           <View style={styles.genderContainer}>
             <TouchableOpacity
-              style={[styles.genderButton, formData.gender === 'male' && styles.genderButtonActive]}
-              onPress={() => updateField('gender', 'male')}
+              style={[
+                styles.genderButton, 
+                formData.gender === 'male' && styles.genderButtonActive,
+                errors.gender && touched.gender && !formData.gender && styles.genderButtonError
+              ]}
+              onPress={() => {
+                handleFieldChange('gender', 'male');
+                handleBlur('gender');
+              }}
               disabled={loading}
               activeOpacity={0.7}
             >
@@ -399,8 +466,15 @@ export default function DriverRegistrationScreen({ navigation }) {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.genderButton, formData.gender === 'female' && styles.genderButtonActive]}
-              onPress={() => updateField('gender', 'female')}
+              style={[
+                styles.genderButton, 
+                formData.gender === 'female' && styles.genderButtonActive,
+                errors.gender && touched.gender && !formData.gender && styles.genderButtonError
+              ]}
+              onPress={() => {
+                handleFieldChange('gender', 'female');
+                handleBlur('gender');
+              }}
               disabled={loading}
               activeOpacity={0.7}
             >
@@ -409,38 +483,50 @@ export default function DriverRegistrationScreen({ navigation }) {
               </Text>
             </TouchableOpacity>
           </View>
+          {errors.gender && touched.gender && (
+            <Text style={styles.errorText}>{errors.gender}</Text>
+          )}
 
           {/* License */}
           <Text style={styles.label}>Driver License Number *</Text>
           <TextInput 
-            style={styles.input} 
+            style={[styles.input, errors.licensePlate && touched.licensePlate && styles.inputError]} 
             placeholder="Enter your license number" 
             placeholderTextColor="#999" 
             value={formData.licensePlate} 
-            onChangeText={(v) => updateField('licensePlate', v)}
+            onChangeText={(v) => handleFieldChange('licensePlate', v)}
+            onBlur={() => handleBlur('licensePlate')}
             editable={!loading}
           />
+          {errors.licensePlate && touched.licensePlate && (
+            <Text style={styles.errorText}>{errors.licensePlate}</Text>
+          )}
 
           {/* Vehicle */}
           <Text style={styles.label}>Vehicle Model *</Text>
           <TextInput 
-            style={styles.input} 
+            style={[styles.input, errors.vehicleModel && touched.vehicleModel && styles.inputError]} 
             placeholder="e.g. Toyota Camry 2020" 
             placeholderTextColor="#999" 
             value={formData.vehicleModel} 
-            onChangeText={(v) => updateField('vehicleModel', v)}
+            onChangeText={(v) => handleFieldChange('vehicleModel', v)}
+            onBlur={() => handleBlur('vehicleModel')}
             editable={!loading}
           />
+          {errors.vehicleModel && touched.vehicleModel && (
+            <Text style={styles.errorText}>{errors.vehicleModel}</Text>
+          )}
 
           {/* Password */}
           <Text style={styles.label}>Password *</Text>
-          <View style={styles.passwordContainer}>
+          <View style={[styles.passwordContainer, errors.password && touched.password && styles.inputError]}>
             <TextInput 
               style={styles.passwordInput} 
               placeholder="Create a strong password" 
               placeholderTextColor="#999" 
               value={formData.password} 
-              onChangeText={(v) => updateField('password', v)} 
+              onChangeText={(v) => handleFieldChange('password', v)}
+              onBlur={() => handleBlur('password')}
               secureTextEntry={!showPassword}
               editable={!loading}
             />
@@ -452,9 +538,12 @@ export default function DriverRegistrationScreen({ navigation }) {
               <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
             </TouchableOpacity>
           </View>
+          {errors.password && touched.password && (
+            <Text style={styles.errorText}>{errors.password}</Text>
+          )}
 
           {/* Password Strength */}
-          {formData.password && passwordStrength.strength && (
+          {formData.password && passwordStrength.strength && !errors.password && (
             <View style={[styles.strengthIndicator, { backgroundColor: passwordStrength.color + '20' }]}>
               <View style={styles.strengthBar}>
                 <View 
@@ -486,13 +575,14 @@ export default function DriverRegistrationScreen({ navigation }) {
 
           {/* Confirm Password */}
           <Text style={styles.label}>Confirm Password *</Text>
-          <View style={styles.passwordContainer}>
+          <View style={[styles.passwordContainer, errors.confirmPassword && touched.confirmPassword && styles.inputError]}>
             <TextInput 
               style={styles.passwordInput} 
               placeholder="Re-enter your password" 
               placeholderTextColor="#999" 
               value={formData.confirmPassword} 
-              onChangeText={(v) => updateField('confirmPassword', v)} 
+              onChangeText={(v) => handleFieldChange('confirmPassword', v)}
+              onBlur={() => handleBlur('confirmPassword')}
               secureTextEntry={!showConfirmPassword}
               editable={!loading}
             />
@@ -504,12 +594,18 @@ export default function DriverRegistrationScreen({ navigation }) {
               <Text style={styles.eyeIcon}>{showConfirmPassword ? '👁️' : '👁️‍🗨️'}</Text>
             </TouchableOpacity>
           </View>
+          {errors.confirmPassword && touched.confirmPassword && (
+            <Text style={styles.errorText}>{errors.confirmPassword}</Text>
+          )}
 
           {/* Face Verification */}
           <View style={styles.faceVerification}>
             <Text style={styles.label}>Face Verification *</Text>
             <TouchableOpacity 
-              style={styles.cameraButton} 
+              style={[
+                styles.cameraButton,
+                errors.faceImage && touched.faceImage && !formData.faceImage && styles.cameraButtonError
+              ]} 
               onPress={pickImage}
               disabled={loading}
               activeOpacity={0.8}
@@ -524,6 +620,9 @@ export default function DriverRegistrationScreen({ navigation }) {
                 </>
               )}
             </TouchableOpacity>
+            {errors.faceImage && touched.faceImage && (
+              <Text style={styles.errorText}>{errors.faceImage}</Text>
+            )}
             {formData.faceImage && (
               <TouchableOpacity 
                 style={styles.retakeButton}
@@ -601,11 +700,22 @@ const styles = StyleSheet.create({
     paddingVertical: 14, 
     color: COLORS.text, 
     fontSize: 16, 
-    marginBottom: 15, 
+    marginBottom: 6, 
     borderWidth: 1, 
     borderColor: COLORS.accent + '30' 
   },
-  genderContainer: { flexDirection: 'row', marginBottom: 15, gap: 10 },
+  inputError: {
+    borderColor: ERROR_COLOR,
+    borderWidth: 2
+  },
+  errorText: {
+    color: ERROR_COLOR,
+    fontSize: 12,
+    marginLeft: 5,
+    marginBottom: 15,
+    marginTop: -3
+  },
+  genderContainer: { flexDirection: 'row', marginBottom: 6, gap: 10 },
   genderButton: { 
     flex: 1, 
     backgroundColor: COLORS.primary, 
@@ -619,6 +729,9 @@ const styles = StyleSheet.create({
     borderColor: COLORS.accent, 
     backgroundColor: COLORS.accent + '20' 
   },
+  genderButtonError: {
+    borderColor: ERROR_COLOR
+  },
   genderText: { fontSize: 16, color: COLORS.text },
   genderTextActive: { color: COLORS.accent, fontWeight: 'bold' },
   passwordContainer: {
@@ -626,7 +739,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORS.primary,
     borderRadius: 12,
-    marginBottom: 12,
+    marginBottom: 6,
     borderWidth: 1,
     borderColor: COLORS.accent + '30'
   },
@@ -690,7 +803,12 @@ const styles = StyleSheet.create({
     alignItems: 'center', 
     borderWidth: 2, 
     borderColor: COLORS.accent, 
-    borderStyle: 'dashed' 
+    borderStyle: 'dashed',
+    marginBottom: 6
+  },
+  cameraButtonError: {
+    borderColor: ERROR_COLOR,
+    borderStyle: 'solid'
   },
   cameraIcon: { fontSize: 50, marginBottom: 10 },
   cameraText: { color: COLORS.text, fontSize: 16, marginBottom: 5, fontWeight: 'bold' },
