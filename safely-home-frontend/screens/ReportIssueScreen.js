@@ -1,16 +1,19 @@
+// safely-home-frontend/screens/ReportIssueScreen.js
+// ✅ UPDATED: Using Custom Alerts instead of Alert.alert
+
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, Alert, ScrollView, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Linking, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { COLORS, API_URL } from '../config';
 import { makeEmergencyCall } from '../services/phoneUtils';
+import { showAlert } from '../components/CustomAlert';
 
 export default function ReportIssueScreen({ navigation, route }) {
   const params = route.params || {};
   const rideId = params.rideId;
   const driver = params.driver || {};
   
-  // ✅ FIXED: Get trip details
   const [rideDetails, setRideDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
@@ -47,7 +50,6 @@ export default function ReportIssueScreen({ navigation, route }) {
     }
   };
 
-  // ✅ NEW: Fetch actual ride details
   const fetchRideDetails = async (authToken) => {
     try {
       console.log('📡 Fetching ride details for report:', rideId);
@@ -76,19 +78,28 @@ export default function ReportIssueScreen({ navigation, route }) {
     }
   };
 
-  // ✅ FIXED: Proper emergency call function
   const handleEmergency = () => {
-  makeEmergencyCall();
+    makeEmergencyCall();
   };
 
   const handleSubmit = async () => {
     if (!selectedIssue) {
-      Alert.alert('Error', 'Please select an issue type');
+      showAlert(
+        'Issue Type Required',
+        'Please select an issue type to continue',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
       return;
     }
 
     if (!description.trim()) {
-      Alert.alert('Error', 'Please describe what happened');
+      showAlert(
+        'Description Required',
+        'Please describe what happened so we can help you better',
+        [{ text: 'OK' }],
+        { type: 'warning' }
+      );
       return;
     }
 
@@ -119,16 +130,20 @@ export default function ReportIssueScreen({ navigation, route }) {
       reports.push(reportData);
       await AsyncStorage.setItem('reports', JSON.stringify(reports));
 
-      Alert.alert(
+      showAlert(
         'Report Submitted',
-        'Your safety report has been submitted. Our team will investigate immediately.',
-        [
-          { text: 'OK', onPress: () => navigation.goBack() }
-        ]
+        'Your safety report has been submitted successfully. Our team will investigate immediately and contact you within 24 hours.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }],
+        { type: 'success', cancelable: false }
       );
     } catch (error) {
       console.error('Error submitting report:', error);
-      Alert.alert('Error', 'Failed to submit report. Please try again.');
+      showAlert(
+        'Submission Failed',
+        'Failed to submit report. Please try again or contact support directly.',
+        [{ text: 'OK' }],
+        { type: 'error' }
+      );
     } finally {
       setSubmitting(false);
     }
@@ -152,7 +167,6 @@ export default function ReportIssueScreen({ navigation, route }) {
     );
   }
 
-  // ✅ Get formatted date and time
   const getRideDateTime = () => {
     if (rideDetails?.createdAt) {
       const date = new Date(rideDetails.createdAt);
@@ -174,7 +188,6 @@ export default function ReportIssueScreen({ navigation, route }) {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.subtitle}>Your safety is our priority. Report any concerns immediately.</Text>
 
-        {/* ✅ FIXED: Display actual trip details */}
         <View style={styles.tripInfo}>
           <Text style={styles.tripInfoLabel}>Trip Details</Text>
           <Text style={styles.tripInfoText}>Trip ID: {rideId?.slice(-6) || '#XXXXX'}</Text>
@@ -182,7 +195,6 @@ export default function ReportIssueScreen({ navigation, route }) {
           <Text style={styles.tripInfoText}>Date: {getRideDateTime()}</Text>
         </View>
 
-        {/* ✅ FIXED: Emergency button now actually calls 911 */}
         <TouchableOpacity style={styles.emergencyButton} onPress={handleEmergency}>
           <Text style={styles.emergencyIcon}>🚨</Text>
           <View style={styles.emergencyTextContainer}>

@@ -9,10 +9,10 @@ import {
   TouchableOpacity, 
   StyleSheet, 
   ScrollView, 
-  Alert, 
   Switch, 
   RefreshControl,
 } from 'react-native';
+import { showAlert } from '../components/CustomAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../config';
@@ -90,14 +90,11 @@ export default function DriverHomeScreen({ navigation }) {
       
       loadAvailableRides();
       
-      Alert.alert(
-        '🚗 New Ride Request!',
-        `Pickup: ${rideData.pickup}\nFare: ${rideData.fare} pkr`,
+      showAlert('🚗 New Ride Request!', `📍Pickup: ${rideData.pickup}\n💰Fare: ${rideData.fare} pkr`,
         [
           { text: 'Ignore', style: 'cancel' },
-          { text: 'View', onPress: () => loadAvailableRides() },
-          { text: 'Accept', onPress: () => handleAcceptRide(rideData.rideId, rideData) }
-        ]
+          { text: 'Accept', onPress: () => handleAcceptRide(rideData.rideId, rideData)}
+        ],
       );
     });
 
@@ -117,14 +114,14 @@ export default function DriverHomeScreen({ navigation }) {
       await updateDriverStatus(!isOnline);
       setIsOnline(!isOnline);
       if (!isOnline) {
-        Alert.alert('You are now online', 'You will receive ride requests');
+        showAlert('You are now online', 'You will receive ride requests');
         loadAvailableRides();
       } else {
-        Alert.alert('You are now offline', 'You will not receive ride requests');
+        showAlert('You are now offline', 'You will not receive ride requests');
         setAvailableRides([]);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to update status');
+      showAlert('Error', 'Failed to update status', [{text: 'OK'}],{type: 'error'});
     }
   };
 
@@ -139,7 +136,7 @@ export default function DriverHomeScreen({ navigation }) {
           ? { name: response.ride.rider.name, phone: response.ride.rider.phone }
           : null;
 
-      Alert.alert('Ride Accepted!', 'Navigate to pickup location', [
+      showAlert('Ride Accepted!', 'Navigate to pickup location', [
         {
           text: 'Start Navigation',
           onPress: () => {
@@ -151,17 +148,20 @@ export default function DriverHomeScreen({ navigation }) {
             });
           }
         }
-      ]);
+      ],
+    {
+      type: 'info'
+    });
 
       loadAvailableRides();
 
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.error || 'Failed to accept ride');
+      showAlert('Error', error.response?.data?.error || 'Failed to accept ride',[{text: 'OK'}],{type: 'error'});
     }
   };
 
   const handleLogout = async () => {
-    Alert.alert('Logout', 'Are you sure?', [
+    showAlert('Logout', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Logout',
@@ -304,7 +304,7 @@ export default function DriverHomeScreen({ navigation }) {
                   </Text>
                 </View>
                 <View style={styles.fareContainer}>
-                  <Text style={styles.rideFare}>{ride.fare.toFixed(2)} pkr</Text>
+                  <Text style={styles.rideFare}>{ride.fare.toFixed(0)} pkr</Text>
                   <Text style={styles.fareLabel}>Fare </Text>
                 </View>
               </View>
@@ -400,5 +400,5 @@ const styles = StyleSheet.create({
   acceptButtonText: { fontSize: 16, fontWeight: 'bold', color: COLORS.textDark },
   scrollContent: {
     paddingBottom: 100 // ✅ Extra padding for Android nav buttons
-  }
+  },
 });

@@ -1,10 +1,14 @@
+// safely-home-frontend/screens/DriverTrackingScreen.js
+// ✅ UPDATED: Using Custom Alerts instead of Alert.alert
+
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, Linking, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, API_URL } from '../config';
 import { completeRide, cancelRide } from '../services/api';
 import socketService from '../services/socket';
 import { makePhoneCall, makeEmergencyCall } from '../services/phoneUtils';
+import { showAlert } from '../components/CustomAlert';
 
 export default function DriverTrackingScreen({ navigation, route }) {
   const { rideId, rider, pickup, destination } = route.params || {};
@@ -79,9 +83,12 @@ export default function DriverTrackingScreen({ navigation, route }) {
 
   const setupSocketListeners = () => {
     socketService.on('rideCancelled', () => {
-      Alert.alert('Ride Cancelled', 'Rider cancelled the ride', [
-        { text: 'OK', onPress: () => navigation.replace('DriverHome') }
-      ]);
+      showAlert(
+        'Ride Cancelled',
+        'Rider cancelled the ride',
+        [{ text: 'OK', onPress: () => navigation.replace('DriverHome') }],
+        { type: 'warning' }
+      );
     });
 
     socketService.on('newMessage', (message) => {
@@ -92,8 +99,8 @@ export default function DriverTrackingScreen({ navigation, route }) {
   };
 
   const handleCallRider = () => {
-  makePhoneCall(riderInfo?.phone, riderInfo?.name || 'Rider');
-};
+    makePhoneCall(riderInfo?.phone, riderInfo?.name || 'Rider');
+  };
 
   const handleOpenChat = () => {
     setUnreadMessages(0);
@@ -107,7 +114,12 @@ export default function DriverTrackingScreen({ navigation, route }) {
 
   const openGoogleMaps = (location, label) => {
     if (!location) {
-      Alert.alert('Error', 'Location not available');
+      showAlert(
+        'Location Error',
+        'Location not available',
+        [{ text: 'OK' }],
+        { type: 'error' }
+      );
       return;
     }
 
@@ -129,7 +141,12 @@ export default function DriverTrackingScreen({ navigation, route }) {
       .catch((err) => {
         console.error('Error opening maps:', err);
         Linking.openURL(fallbackUrl).catch(() => {
-          Alert.alert('Error', 'Unable to open maps');
+          showAlert(
+            'Maps Error',
+            'Unable to open maps application',
+            [{ text: 'OK' }],
+            { type: 'error' }
+          );
         });
       });
   };
@@ -137,66 +154,106 @@ export default function DriverTrackingScreen({ navigation, route }) {
   const handleArrivedAtPickup = () => {
     setRideStatus('at_pickup');
     socketService.emit('rideStatusUpdate', { rideId: rideId, status: 'arrived' });
-    Alert.alert('Great! 👍', 'Let the rider know you have arrived');
+    
+    showAlert(
+      'Great! 👍',
+      'Let the rider know you have arrived',
+      [{ text: 'OK' }],
+      { type: 'success' }
+    );
   };
 
   const handleStartTrip = () => {
-    Alert.alert('Start Trip', 'Have you picked up the rider?', [
-      { text: 'Not Yet', style: 'cancel' },
-      {
-        text: 'Yes, Start Trip',
-        onPress: () => {
-          setRideStatus('in_progress');
-          socketService.emit('rideStatusUpdate', { rideId: rideId, status: 'started' });
-          Alert.alert('Trip Started 🚀', 'Navigate to destination');
+    showAlert(
+      'Start Trip',
+      'Have you picked up the rider?',
+      [
+        { text: 'Not Yet', style: 'cancel' },
+        {
+          text: 'Yes, Start Trip',
+          onPress: () => {
+            setRideStatus('in_progress');
+            socketService.emit('rideStatusUpdate', { rideId: rideId, status: 'started' });
+            
+            showAlert(
+              'Trip Started 🚀',
+              'Navigate to destination',
+              [{ text: 'OK' }],
+              { type: 'success' }
+            );
+          }
         }
-      }
-    ]);
+      ],
+      { type: 'info' }
+    );
   };
 
   const handleCompleteRide = () => {
-    Alert.alert('Complete Ride', 'Have you reached the destination?', [
-      { text: 'Not Yet', style: 'cancel' },
-      {
-        text: 'Yes, Complete',
-        onPress: async () => {
-          try {
-            await completeRide(rideId);
-            const fare = rideDetails?.fare || 50;
-            const earnings = (fare * 0.80).toFixed(2);
-            Alert.alert('✅ Ride Completed!', `Great job! Earnings: ${earnings} pkr`, [
-              { text: 'Back to Home', onPress: () => navigation.replace('DriverHome') }
-            ]);
-          } catch (error) {
-            Alert.alert('Error', 'Failed to complete ride');
+    showAlert(
+      'Complete Ride',
+      'Have you reached the destination?',
+      [
+        { text: 'Not Yet', style: 'cancel' },
+        {
+          text: 'Yes, Complete',
+          onPress: async () => {
+            try {
+              await completeRide(rideId);
+              const fare = rideDetails?.fare || 50;
+              const earnings = (fare * 0.80).toFixed(2);
+              
+              showAlert(
+                '✅ Ride Completed!',
+                `Great job! Your earnings: ${earnings} pkr`,
+                [{ text: 'Back to Home', onPress: () => navigation.replace('DriverHome') }],
+                { type: 'success', cancelable: false }
+              );
+            } catch (error) {
+              showAlert(
+                'Error',
+                'Failed to complete ride. Please try again.',
+                [{ text: 'OK' }],
+                { type: 'error' }
+              );
+            }
           }
         }
-      }
-    ]);
+      ],
+      { type: 'info' }
+    );
   };
 
   const handleCancelRide = () => {
-    Alert.alert('Cancel Ride', 'This may affect your rating.', [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Yes, Cancel',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await cancelRide(rideId);
-            navigation.replace('DriverHome');
-          } catch (error) {
-            Alert.alert('Error', 'Failed to cancel ride');
+    showAlert(
+      'Cancel Ride',
+      'This may affect your rating. Are you sure?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelRide(rideId);
+              navigation.replace('DriverHome');
+            } catch (error) {
+              showAlert(
+                'Error',
+                'Failed to cancel ride. Please try again.',
+                [{ text: 'OK' }],
+                { type: 'error' }
+              );
+            }
           }
         }
-      }
-    ]);
+      ],
+      { type: 'warning' }
+    );
   };
 
-  // ✅ FIXED: Proper emergency 911 call function
   const handleEmergency = () => {
-  makeEmergencyCall();
-};
+    makeEmergencyCall();
+  };
 
   const getStatusText = () => {
     switch (rideStatus) {
@@ -212,7 +269,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
       case 'heading_to_pickup':
         return (
           <TouchableOpacity style={styles.primaryButton} onPress={handleArrivedAtPickup}>
-            <Text style={styles.primaryButtonText}>✓ I've Arrived at Pickup </Text>
+            <Text style={styles.primaryButtonText}>✓ I've Arrived at Pickup</Text>
           </TouchableOpacity>
         );
       case 'at_pickup':
@@ -231,13 +288,22 @@ export default function DriverTrackingScreen({ navigation, route }) {
     }
   };
 
+  const handleBackPress = () => {
+    showAlert(
+      'Ride in Progress',
+      'Please complete or cancel the ride first',
+      [{ text: 'OK' }],
+      { type: 'info' }
+    );
+  };
+
   const fare = rideDetails?.fare || 50;
   const earnings = (fare * 0.80).toFixed(2);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => Alert.alert('Ride in Progress', 'Please complete or cancel the ride first')}>
+        <TouchableOpacity onPress={handleBackPress}>
           <Text style={styles.backButton}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Active Ride</Text>
@@ -250,7 +316,8 @@ export default function DriverTrackingScreen({ navigation, route }) {
             <Text style={styles.statusBadgeText}>
               {rideStatus === 'heading_to_pickup' && '🚗 Heading to Pickup'}
               {rideStatus === 'at_pickup' && '⏳ At Pickup Location'}
-              {rideStatus === 'in_progress' && '🚀 Trip in Progress'} </Text>
+              {rideStatus === 'in_progress' && '🚀 Trip in Progress'}
+            </Text>
           </View>
           <Text style={styles.statusText}>{getStatusText()}</Text>
         </View>
@@ -263,8 +330,8 @@ export default function DriverTrackingScreen({ navigation, route }) {
               </Text>
             </View>
             <View style={styles.riderDetails}>
-              <Text style={styles.riderName}>{riderInfo?.name || 'Rider'} </Text>
-              <Text style={styles.riderPhone}>📞 {riderInfo?.phone || 'Phone'} </Text>
+              <Text style={styles.riderName}>{riderInfo?.name || 'Rider'}</Text>
+              <Text style={styles.riderPhone}>📞 {riderInfo?.phone || 'Phone'}</Text>
             </View>
           </View>
 
@@ -319,16 +386,16 @@ export default function DriverTrackingScreen({ navigation, route }) {
           <View style={styles.fareInfo}>
             <View style={styles.fareRow}>
               <Text style={styles.fareLabel}>Trip Fare</Text>
-              <Text style={styles.fareValue}>{fare.toFixed(2)} pkr </Text>
+              <Text style={styles.fareValue}>{fare.toFixed(2)} pkr</Text>
             </View>
             <View style={styles.fareRow}>
               <Text style={styles.fareLabel}>Your Earnings (80%)</Text>
-              <Text style={styles.fareEarnings}>{earnings} pkr </Text>
+              <Text style={styles.fareEarnings}>{earnings} pkr</Text>
             </View>
             {rideDetails?.distance && (
               <View style={styles.fareRow}>
                 <Text style={styles.fareLabel}>Distance</Text>
-                <Text style={styles.fareValue}>{rideDetails.distance.toFixed(2)} km </Text>
+                <Text style={styles.fareValue}>{rideDetails.distance.toFixed(2)} km</Text>
               </View>
             )}
             {rideDetails?.estimatedTime && (

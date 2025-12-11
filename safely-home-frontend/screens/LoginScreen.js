@@ -188,7 +188,7 @@ export default function LoginScreen({ navigation }) {
         <View style={styles.logoContainer}>
           <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title}>SAFELY HOME</Text>
-          <Text style={styles.tagline}>Your Safety, Our Priority</Text>
+          <Text style={styles.tagline}>Your Safety, Our Priority </Text>
         </View>
 
         <View style={styles.card}>
@@ -300,7 +300,7 @@ export default function LoginScreen({ navigation }) {
               disabled={loading}
             >
               <Text style={styles.registerLink}>
-                Register as {userType === 'rider' ? 'Rider' : 'Driver'}
+                Register as{userType === 'rider' ? 'Rider' : 'Driver'}
               </Text>
             </TouchableOpacity>
           </View>

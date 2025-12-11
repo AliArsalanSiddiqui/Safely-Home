@@ -399,11 +399,10 @@ export default function BookingScreen({ navigation, route }) {
       setSearchingDriver(false);
       showAlert(
         'Ride Cancelled',
-        'The driver cancelled the ride',
+        'you cancelled the ride',
         [
           { 
             text: 'OK', 
-            onPress: () => navigation.goBack() 
           }
         ],
         { type: 'error' }

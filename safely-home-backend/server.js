@@ -98,7 +98,7 @@ const userSchema = new mongoose.Schema({
   userType: { type: String, enum: ['rider', 'driver'], required: true },
   genderPreference: String,
   gender: String,
-  rating: { type: Number, default: 5.0 },
+  rating: { type: Number, default: 0.0 },
   
   // ✅ NEW: Cloudinary image URLs instead of local files
   faceData: String, // Cloudinary URL for face image
