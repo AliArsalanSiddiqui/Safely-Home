@@ -1,15 +1,17 @@
 // safely-home-frontend/screens/LoginScreen.js
-// ✅ ENHANCED: Custom Alerts + Show Password + Better Error Handling
+// ✅ ENHANCED: Real-time validation with inline error messages + Custom Alerts
 
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Image, KeyboardAvoidingView, Platform, ActivityIndicator,
+  Image, KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView
 } from 'react-native';
 import { COLORS } from '../config';
 import { login } from '../services/api';
 import { showAlert } from '../components/CustomAlert';
-import { ScrollView } from 'react-native-gesture-handler';
+
+// Add error color if not in COLORS
+const ERROR_COLOR = COLORS.error || '#F44336';
 
 export default function LoginScreen({ navigation }) {
   const [userType, setUserType] = useState('rider');
@@ -17,41 +19,108 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  
+  // Inline error states
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [touched, setTouched] = useState({
+    email: false,
+    password: false
+  });
+
+  // Real-time email validation
+  const validateEmail = (value) => {
+    if (!value.trim()) {
+      return 'Email is required';
+    }
+    
+    if (!value.includes('@')) {
+      return 'Email must contain @';
+    }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(value.trim())) {
+      return 'Please enter a valid email (e.g., user@example.com)';
+    }
+    
+    return '';
+  };
+
+  // Real-time password validation
+  const validatePassword = (value) => {
+    if (!value) {
+      return 'Password is required';
+    }
+    
+    if (value.length < 8) {
+      return 'Password must be at least 8 characters';
+    }
+    
+    return '';
+  };
+
+  const handleEmailChange = (value) => {
+    setEmail(value);
+    if (touched.email) {
+      setEmailError(validateEmail(value));
+    }
+  };
+
+  const handlePasswordChange = (value) => {
+    setPassword(value);
+    if (touched.password) {
+      setPasswordError(validatePassword(value));
+    }
+  };
+
+  const handleEmailBlur = () => {
+    setTouched({ ...touched, email: true });
+    setEmailError(validateEmail(email));
+  };
+
+  const handlePasswordBlur = () => {
+    setTouched({ ...touched, password: true });
+    setPasswordError(validatePassword(password));
+  };
 
   const handleLogin = async () => {
-    // Validation
-    if (!email.trim()) {
+    // Mark all fields as touched
+    setTouched({ email: true, password: true });
+    
+    // Validate all fields
+    const emailErr = validateEmail(email);
+    const passwordErr = validatePassword(password);
+    
+    setEmailError(emailErr);
+    setPasswordError(passwordErr);
+
+    // Check if all fields are empty
+    if (!email.trim() && !password) {
       showAlert(
         'Missing Information',
-        'Please enter your email address',
+        'Please fill in all fields to continue',
         [{ text: 'OK' }],
         { type: 'warning' }
       );
       return;
     }
 
-    if (!password) {
+    // Check for specific field errors
+    const missingFields = [];
+    if (emailErr) missingFields.push('Email');
+    if (passwordErr) missingFields.push('Password');
+
+    if (missingFields.length > 0) {
       showAlert(
-        'Missing Information',
-        'Please enter your password',
+        'Incomplete Form',
+        `Please check the following ${missingFields.length === 1 ? 'field' : 'fields'}:\n\n• ${missingFields.join('\n• ')}`,
         [{ text: 'OK' }],
         { type: 'warning' }
       );
       return;
     }
 
-    // Email format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      showAlert(
-        'Invalid Email',
-        'Please enter a valid email address',
-        [{ text: 'OK' }],
-        { type: 'error' }
-      );
-      return;
-    }
-
+    // All validations passed
     setLoading(true);
     try {
       const response = await login(email.trim(), password);
@@ -111,124 +180,132 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <ScrollView>
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={styles.logoContainer}>
-        <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
-        <Text style={styles.title}>SAFELY HOME</Text>
-        <Text style={styles.tagline}>Your Safety, Our Priority </Text>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.welcomeText}>Welcome Back</Text>
-
-        {/* User Type Selector */}
-        <View style={styles.typeSelector}>
-          <TouchableOpacity
-            style={[styles.typeButton, userType === 'rider' && styles.typeButtonActive]}
-            onPress={() => setUserType('rider')}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.typeButtonText, userType === 'rider' && styles.typeButtonTextActive]}>
-              👤 Rider
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.typeButton, userType === 'driver' && styles.typeButtonActive]}
-            onPress={() => setUserType('driver')}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.typeButtonText, userType === 'driver' && styles.typeButtonTextActive]}>
-              🚗 Driver
-            </Text>
-          </TouchableOpacity>
+    <ScrollView style={{ flex: 1, backgroundColor: COLORS.primary }}>
+      <KeyboardAvoidingView 
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={styles.logoContainer}>
+          <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.title}>SAFELY HOME</Text>
+          <Text style={styles.tagline}>Your Safety, Our Priority</Text>
         </View>
 
-        {/* Email Input */}
-        <Text style={styles.label}>Email Address</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your email"
-          placeholderTextColor="#999"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-          editable={!loading}
-        />
+        <View style={styles.card}>
+          <Text style={styles.welcomeText}>Welcome Back</Text>
 
-        {/* Password Input with Show/Hide */}
-        <Text style={styles.label}>Password</Text>
-        <View style={styles.passwordContainer}>
+          {/* User Type Selector */}
+          <View style={styles.typeSelector}>
+            <TouchableOpacity
+              style={[styles.typeButton, userType === 'rider' && styles.typeButtonActive]}
+              onPress={() => setUserType('rider')}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.typeButtonText, userType === 'rider' && styles.typeButtonTextActive]}>
+                👤 Rider
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.typeButton, userType === 'driver' && styles.typeButtonActive]}
+              onPress={() => setUserType('driver')}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.typeButtonText, userType === 'driver' && styles.typeButtonTextActive]}>
+                🚗 Driver
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Email Input */}
+          <Text style={styles.label}>Email Address</Text>
           <TextInput
-            style={styles.passwordInput}
-            placeholder="Enter your password"
+            style={[styles.input, emailError && touched.email && styles.inputError]}
+            placeholder="Enter your email"
             placeholderTextColor="#999"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
+            value={email}
+            onChangeText={handleEmailChange}
+            onBlur={handleEmailBlur}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
             editable={!loading}
           />
-          <TouchableOpacity 
-            style={styles.eyeButton}
-            onPress={() => setShowPassword(!showPassword)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Forgot Password */}
-        <TouchableOpacity 
-          style={styles.forgotPassword}
-          onPress={() => {
-            showAlert(
-              'Reset Password',
-              'Password reset feature coming soon. Please contact support if you need help.',
-              [{ text: 'OK' }],
-              { type: 'info' }
-            );
-          }}
-        >
-          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-        </TouchableOpacity>
-
-        {/* Login Button */}
-        <TouchableOpacity 
-          style={[styles.loginButton, loading && styles.loginButtonDisabled]} 
-          onPress={handleLogin} 
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color={COLORS.textDark} />
-          ) : (
-            <Text style={styles.loginButtonText}>
-              Login as {userType === 'rider' ? 'Rider' : 'Driver'}
-            </Text>
+          {emailError && touched.email && (
+            <Text style={styles.errorText}>{emailError}</Text>
           )}
-        </TouchableOpacity>
 
-        {/* Register Link */}
-        <View style={styles.registerContainer}>
-          <Text style={styles.registerText}>Don't have an account? </Text>
+          {/* Password Input with Show/Hide */}
+          <Text style={styles.label}>Password</Text>
+          <View style={[styles.passwordContainer, passwordError && touched.password && styles.inputError]}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Enter your password"
+              placeholderTextColor="#999"
+              value={password}
+              onChangeText={handlePasswordChange}
+              onBlur={handlePasswordBlur}
+              secureTextEntry={!showPassword}
+              editable={!loading}
+            />
+            <TouchableOpacity 
+              style={styles.eyeButton}
+              onPress={() => setShowPassword(!showPassword)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+            </TouchableOpacity>
+          </View>
+          {passwordError && touched.password && (
+            <Text style={styles.errorText}>{passwordError}</Text>
+          )}
+
+          {/* Forgot Password */}
           <TouchableOpacity 
-            onPress={() => navigation.navigate(
-              userType === 'rider' ? 'RiderRegistration' : 'DriverRegistration'
-            )}
-            disabled={loading}
+            style={styles.forgotPassword}
+            onPress={() => {
+              showAlert(
+                'Reset Password',
+                'Password reset feature coming soon. Please contact support if you need help.',
+                [{ text: 'OK' }],
+                { type: 'info' }
+              );
+            }}
           >
-            <Text style={styles.registerLink}>
-              Register as {userType === 'rider' ? 'Rider' : 'Driver'}
-            </Text>
+            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
           </TouchableOpacity>
+
+          {/* Login Button */}
+          <TouchableOpacity 
+            style={[styles.loginButton, loading && styles.loginButtonDisabled]} 
+            onPress={handleLogin} 
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color={COLORS.textDark} />
+            ) : (
+              <Text style={styles.loginButtonText}>
+                Login as {userType === 'rider' ? 'Rider' : 'Driver'}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Register Link */}
+          <View style={styles.registerContainer}>
+            <Text style={styles.registerText}>Don't have an account? </Text>
+            <TouchableOpacity 
+              onPress={() => navigation.navigate(
+                userType === 'rider' ? 'RiderRegistration' : 'DriverRegistration'
+              )}
+              disabled={loading}
+            >
+              <Text style={styles.registerLink}>
+                Register as {userType === 'rider' ? 'Rider' : 'Driver'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
     </ScrollView>
   );
 }
@@ -242,7 +319,8 @@ const styles = StyleSheet.create({
   },
   logoContainer: { 
     alignItems: 'center', 
-    marginBottom: 40 
+    marginBottom: 40,
+    marginTop: 60
   },
   logo: { 
     width: 100, 
@@ -312,16 +390,27 @@ const styles = StyleSheet.create({
     paddingVertical: 14, 
     color: COLORS.text, 
     fontSize: 16, 
-    marginBottom: 15, 
+    marginBottom: 6, 
     borderWidth: 1, 
     borderColor: COLORS.accent + '30' 
+  },
+  inputError: {
+    borderColor: ERROR_COLOR,
+    borderWidth: 2
+  },
+  errorText: {
+    color: ERROR_COLOR,
+    fontSize: 12,
+    marginLeft: 5,
+    marginBottom: 15,
+    marginTop: -3
   },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.primary,
     borderRadius: 12,
-    marginBottom: 10,
+    marginBottom: 6,
     borderWidth: 1,
     borderColor: COLORS.accent + '30'
   },
@@ -341,7 +430,8 @@ const styles = StyleSheet.create({
   },
   forgotPassword: {
     alignSelf: 'flex-end',
-    marginBottom: 20
+    marginBottom: 20,
+    marginTop: 10
   },
   forgotPasswordText: {
     fontSize: 14,
