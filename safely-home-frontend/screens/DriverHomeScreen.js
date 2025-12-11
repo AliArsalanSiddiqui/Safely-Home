@@ -327,6 +327,8 @@ export default function DriverHomeScreen({ navigation }) {
               <View style={styles.fareContainer}>
                 <Text style={styles.rideFare}>{ride.fare.toFixed(0)} pkr</Text>
                 <Text style={styles.fareLabel}>Fare</Text>
+                <Text style={styles.rideFare}>{ride.distance.toFixed(2)} </Text>
+                <Text style={styles.fareLabel}>km</Text>
               </View>
             </View>
 
@@ -411,7 +413,7 @@ const styles = StyleSheet.create({
   rideTime: { fontSize: 13, color: COLORS.text,opacity: 0.7, marginTop: 3 },
   rideTime: { fontSize: 13, color: COLORS.text, opacity: 0.7, marginTop: 3 },
   fareContainer: { alignItems: 'flex-end' },
-  rideFare: { fontSize: 28, fontWeight: 'bold', color: COLORS.accent },
+  rideFare: { fontSize: 18, fontWeight: 'bold', color: COLORS.accent },
   fareLabel: { fontSize: 12, color: COLORS.text, opacity: 0.7 },
   rideDetails: { marginBottom: 15 },
   rideLocation: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, backgroundColor: COLORS.primary, padding: 12, borderRadius: 10 },
