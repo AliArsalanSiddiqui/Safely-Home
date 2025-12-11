@@ -134,7 +134,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
         [
           { 
             text: 'Find Another Ride', 
-            onPress: () => navigation.replace('RiderHome') 
+            onPress: () => navigation.goBack() 
           }
         ],
         { type: 'warning', cancelable: false }
@@ -202,7 +202,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
               showAlert(
                 'Ride Cancelled',
                 'Your ride has been cancelled successfully',
-                [{ text: 'OK', onPress: () => navigation.replace('RiderHome') }],
+                [{ text: 'OK', onPress: () => navigation.goBack() }],
                 { type: 'info' }
               );
             } catch (error) {
