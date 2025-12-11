@@ -114,10 +114,10 @@ export default function DriverHomeScreen({ navigation }) {
       await updateDriverStatus(!isOnline);
       setIsOnline(!isOnline);
       if (!isOnline) {
-        showAlert('You are now online', 'You will receive ride requests');
+        showAlert('You are now online', 'You will receive ride requests',[{text: 'OK'}],{type: 'info'});
         loadAvailableRides();
       } else {
-        showAlert('You are now offline', 'You will not receive ride requests');
+        showAlert('You are now offline', 'You will not receive ride requests',[{text: 'OK'}],{type: 'info'});
         setAvailableRides([]);
       }
     } catch (error) {

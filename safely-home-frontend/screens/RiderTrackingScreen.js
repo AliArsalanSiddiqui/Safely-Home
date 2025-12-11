@@ -19,7 +19,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
   const [destinationLocation, setDestinationLocation] = useState(params.destination || '');
   
   const [status, setStatus] = useState('Driver is on the way');
-  const [arrivalTime, setArrivalTime] = useState('5 mins');
+  const [arrivalTime, setArrivalTime] = useState('driver on his way');
   const [userId, setUserId] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [token, setToken] = useState(null);
@@ -143,7 +143,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
     socketService.on('rideStatusUpdate', (data) => {
       if (data.status === 'arrived') {
         setStatus('🎯 Driver has arrived!');
-        setArrivalTime('Now');
+        setArrivalTime('around the corner');
         showAlert(
           'Driver Arrived',
           'Your driver is waiting at the pickup location',
@@ -152,7 +152,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
         );
       } else if (data.status === 'started') {
         setStatus('🚀 Trip in progress');
-        setArrivalTime('En route');
+        setArrivalTime('heading to destination');
         showAlert(
           'Trip Started',
           'You are now on your way to the destination. Have a safe trip!',
@@ -262,7 +262,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.statusContainer}>
-          <Text style={styles.arrivalTime}>Arriving in {arrivalTime}</Text>
+          <Text style={styles.arrivalTime}>{arrivalTime} </Text>
           <View style={styles.navigationIcon}>
             <Text style={styles.navigationIconText}>🧭</Text>
           </View>
