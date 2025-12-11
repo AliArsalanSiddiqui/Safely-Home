@@ -86,8 +86,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
     socketService.on('rideCancelled', () => {
       showAlert(
         'Ride Cancelled',
-        'Rider cancelled the ride',
-        [{ text: 'OK', onPress: () => navigation.replace('DriverHome') }],
+        'you cancelled the ride',
         { type: 'warning' }
       );
     });
