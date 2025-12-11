@@ -731,7 +731,8 @@ app.get('/api/rides/history', authenticateToken, async (req, res) => {
   }
 });
 // ============================================
-// UPDATED GET AVAILABLE RIDES - ONLY SHOW ACTIVE REQUESTED
+// BACKEND FIX: safely-home-backend/server.js
+// Replace the /api/rides/available endpoint (around line 470-540)
 // ============================================
 
 app.get('/api/rides/available', authenticateToken, async (req, res) => {
@@ -747,17 +748,17 @@ app.get('/api/rides/available', authenticateToken, async (req, res) => {
       driverGender: driver.gender
     });
 
-    // ✅ FIX: Find rides where rider wants THIS driver's gender
+    // ✅ FIX: Populate profilePicture
     const rides = await Ride.find({ 
       status: 'requested',
       active: true,
       driverId: { $exists: false }
     })
-    .populate('riderId', 'name phone gender genderPreference profilePicture')
+    .populate('riderId', 'name phone gender genderPreference profilePicture') // ✅ Include profilePicture
     .sort({ createdAt: -1 })
-    .limit(20); // Get more, we'll filter
+    .limit(20);
 
-    // ✅ FIX: Filter rides based on gender matching rules
+    // Filter rides based on gender matching rules
     const matchingRides = rides.filter(ride => {
       if (!ride.riderId) return false;
 
@@ -769,7 +770,8 @@ app.get('/api/rides/available', authenticateToken, async (req, res) => {
         rideId: ride._id.toString().slice(-6),
         riderGender,
         riderPref,
-        driverGender
+        driverGender,
+        riderProfilePicture: ride.riderId.profilePicture ? 'Present' : 'Missing' // ✅ Debug log
       });
 
       // RULE 1: Male rider can ONLY get male drivers
@@ -781,32 +783,27 @@ app.get('/api/rides/available', authenticateToken, async (req, res) => {
 
       // RULE 2: Female rider with specific preference
       if (riderGender === 'female') {
-        // Female rider wants female drivers only
         if (riderPref === 'female') {
           const match = driverGender === 'female';
           console.log(`  ${match ? '✅' : '❌'} Female rider wants female: ${match}`);
           return match;
         }
-        
-        // Female rider wants male drivers only
         if (riderPref === 'male') {
           const match = driverGender === 'male';
           console.log(`  ${match ? '✅' : '❌'} Female rider wants male: ${match}`);
           return match;
         }
-        
-        // Female rider wants any driver
         console.log('  ✅ Female rider wants any driver: true');
         return true;
       }
 
-      // Default: If no gender info, don't show
       console.log('  ❌ No gender info, excluding');
       return false;
     });
 
     console.log(`📋 Filtered ${matchingRides.length}/${rides.length} rides for ${driver.name} (${driver.gender})`);
 
+    // ✅ FIX: Include profilePicture in response
     res.json({ 
       success: true, 
       rides: matchingRides.slice(0, 10).map(ride => ({
@@ -820,7 +817,8 @@ app.get('/api/rides/available', authenticateToken, async (req, res) => {
         distance: ride.distance,
         estimatedTime: ride.estimatedTime,
         createdAt: ride.createdAt,
-        profilePicture: ride.riderId?.profilePicture
+        profilePicture: ride.riderId?.profilePicture || null, // ✅ FIXED: Get from riderId
+        riderProfilePicture: ride.riderId?.profilePicture || null // ✅ ALSO ADD THIS for compatibility
       }))
     });
   } catch (error) {

@@ -127,39 +127,44 @@ export default function DriverHomeScreen({ navigation }) {
   };
 
   const handleAcceptRide = async (rideId, rideData) => {
-    try {
-      const response = await acceptRide(rideId);
+  try {
+    const response = await acceptRide(rideId);
 
-      const rider =
-        rideData?.riderName && rideData?.riderPhone
-          ? { name: rideData.riderName, phone: rideData.riderPhone }
-          : response?.ride?.rider
-          ? { name: response.ride.rider.name, phone: response.ride.rider.phone }
-          : null;
-
-      showAlert('Ride Accepted!', 'Navigate to pickup location', [
-        {
-          text: 'Start Navigation',
-          onPress: () => {
-            navigation.navigate('DriverTracking', {
-              rideId: rideId,
-              rider: rider,
-              pickup: rideData.pickup,
-              destination: rideData.destination
-            });
+    const rider =
+      rideData?.riderName && rideData?.riderPhone
+        ? { 
+            name: rideData.riderName, 
+            phone: rideData.riderPhone,
+            profilePicture: rideData.profilePicture || rideData.riderProfilePicture // ✅ Pass pfp
           }
+        : response?.ride?.rider
+        ? { 
+            name: response.ride.rider.name, 
+            phone: response.ride.rider.phone,
+            profilePicture: response.ride.rider.profilePicture // ✅ Pass pfp
+          }
+        : null;
+
+    showAlert('Ride Accepted!', 'Navigate to pickup location', [
+      {
+        text: 'Start Navigation',
+        onPress: () => {
+          navigation.navigate('DriverTracking', {
+            rideId: rideId,
+            rider: rider, // ✅ Now includes profilePicture
+            pickup: rideData.pickup,
+            destination: rideData.destination
+          });
         }
-      ],
-    {
-      type: 'info'
-    });
+      }
+    ], { type: 'info' });
 
-      loadAvailableRides();
+    loadAvailableRides();
 
-    } catch (error) {
-      showAlert('Error', error.response?.data?.error || 'Failed to accept ride',[{text: 'OK'}],{type: 'error'});
-    }
-  };
+  } catch (error) {
+    showAlert('Error', error.response?.data?.error || 'Failed to accept ride', [{text: 'OK'}], {type: 'error'});
+  }
+};
 
   const handleLogout = async () => {
     showAlert('Logout', 'Are you sure?', [
@@ -301,10 +306,11 @@ export default function DriverHomeScreen({ navigation }) {
           <View key={ride.id || index} style={styles.rideCard}>
             <View style={styles.rideHeader}>
               <View style={styles.riderInfoSection}>
+                {/* ✅ FIX: Use ProfileAvatar component with correct field */}
                 <ProfileAvatar 
                   user={{ 
                     name: ride.riderName,
-                    profilePicture: ride.riderProfilePicture // ✅ Need to add this to backend response
+                    profilePicture: ride.profilePicture || ride.riderProfilePicture // ✅ Try both fields
                   }} 
                   size={50} 
                   fontSize={20}
@@ -318,31 +324,31 @@ export default function DriverHomeScreen({ navigation }) {
                   </Text>
                 </View>
               </View>
-                <View style={styles.fareContainer}>
-                  <Text style={styles.rideFare}>{ride.fare.toFixed(0)} pkr</Text>
-                  <Text style={styles.fareLabel}>Fare </Text>
-                </View>
+              <View style={styles.fareContainer}>
+                <Text style={styles.rideFare}>{ride.fare.toFixed(0)} pkr</Text>
+                <Text style={styles.fareLabel}>Fare</Text>
               </View>
-
-              <View style={styles.rideDetails}>
-                <View style={styles.rideLocation}>
-                  <Text style={styles.locationIcon}>📍</Text>
-                  <Text style={styles.locationText} numberOfLines={2}>{ride.pickup}</Text>
-                </View>
-                <View style={styles.rideLocation}>
-                  <Text style={styles.locationIcon}>🎯</Text>
-                  <Text style={styles.locationText} numberOfLines={2}>{ride.destination}</Text>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={styles.acceptButton}
-                onPress={() => handleAcceptRide(ride.id, ride)}
-              >
-                <Text style={styles.acceptButtonText}>✓ Accept Ride</Text>
-              </TouchableOpacity>
             </View>
-          ))}
+
+            <View style={styles.rideDetails}>
+              <View style={styles.rideLocation}>
+                <Text style={styles.locationIcon}>📍</Text>
+                <Text style={styles.locationText} numberOfLines={2}>{ride.pickup}</Text>
+              </View>
+              <View style={styles.rideLocation}>
+                <Text style={styles.locationIcon}>🎯</Text>
+                <Text style={styles.locationText} numberOfLines={2}>{ride.destination}</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.acceptButton}
+              onPress={() => handleAcceptRide(ride.id, ride)}
+            >
+              <Text style={styles.acceptButtonText}>✓ Accept Ride</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
         </View>
       </ScrollView>
     </SafeAreaView>
