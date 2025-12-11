@@ -86,7 +86,8 @@ export default function DriverTrackingScreen({ navigation, route }) {
     socketService.on('rideCancelled', () => {
       showAlert(
         'Ride Cancelled',
-        'you cancelled the ride',
+        'cancelled the ride',
+        [{text: 'Ok'}],
         { type: 'warning' }
       );
     });
@@ -292,7 +293,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
     showAlert(
       'Ride in Progress',
       'Please complete or cancel the ride first',
-      [{ text: 'OK' }],
+      [{text: 'OK'}],
       { type: 'info' }
     );
   };
