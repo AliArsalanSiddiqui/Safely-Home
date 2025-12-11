@@ -165,6 +165,7 @@ export default function DriverHomeScreen({ navigation }) {
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Logout',
+        style: 'destructive',
         onPress: async () => {
           if (isOnline) await updateDriverStatus(false);
           await logout();
@@ -172,7 +173,9 @@ export default function DriverHomeScreen({ navigation }) {
           navigation.replace('Login');
         }
       }
-    ]);
+    ],{
+      type: 'warning'
+    });
   };
 
   return (
