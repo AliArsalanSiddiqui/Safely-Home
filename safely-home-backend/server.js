@@ -1181,39 +1181,100 @@ app.post('/api/ride/complete', authenticateToken, async (req, res) => {
   }
 });
 
-// ============================================
-// UPDATED: Cancel Ride - Mark as inactive
-// ============================================
-
 app.post('/api/ride/cancel', authenticateToken, async (req, res) => {
   try {
     const { rideId } = req.body;
     
-    const ride = await Ride.findByIdAndUpdate(
-      rideId, 
-      { 
-        status: 'cancelled',
-        active: false // ✅ Move to history
-      }, 
-      { new: true }
-    );
+    if (!rideId) {
+      return res.status(400).json({ success: false, error: 'Ride ID is required' });
+    }
+
+    // Find the ride with populated user data
+    const ride = await Ride.findById(rideId)
+      .populate('riderId', 'name')
+      .populate('driverId', 'name');
     
     if (!ride) {
       return res.status(404).json({ success: false, error: 'Ride not found' });
     }
-    
-    console.log('⚠️ Ride cancelled and moved to history:', rideId);
-    
-    // Notify both rider and driver
-    io.to(ride.riderId.toString()).emit('rideCancelled', { rideId: ride._id });
-    if (ride.driverId) {
-      io.to(ride.driverId.toString()).emit('rideCancelled', { rideId: ride._id });
+
+    // Check if ride is already cancelled or completed
+    if (ride.status === 'cancelled') {
+      return res.status(400).json({ success: false, error: 'Ride is already cancelled' });
     }
+
+    if (ride.status === 'completed') {
+      return res.status(400).json({ success: false, error: 'Cannot cancel a completed ride' });
+    }
+
+    // Determine who cancelled (rider or driver)
+    const userId = req.user.userId;
+    const userType = req.user.userType;
     
-    res.json({ success: true, ride });
+    let cancelledBy = 'unknown';
+    let cancellerName = 'User';
+    
+    if (userType === 'rider' && ride.riderId && ride.riderId._id.toString() === userId) {
+      cancelledBy = 'rider';
+      cancellerName = ride.riderId.name || 'Rider';
+    } else if (userType === 'driver' && ride.driverId && ride.driverId._id.toString() === userId) {
+      cancelledBy = 'driver';
+      cancellerName = ride.driverId.name || 'Driver';
+    }
+
+    console.log('🚫 Ride cancellation:', {
+      rideId: ride._id,
+      cancelledBy: cancelledBy,
+      cancellerName: cancellerName,
+      status: ride.status
+    });
+
+    // Update ride status
+    ride.status = 'cancelled';
+    ride.active = false;
+    ride.cancelledAt = new Date();
+    ride.cancelledBy = cancelledBy;
+    await ride.save();
+
+    // Emit socket events to BOTH rider and driver
+    if (ride.riderId) {
+      io.to(ride.riderId._id.toString()).emit('rideCancelled', {
+        rideId: ride._id,
+        cancelledBy: cancelledBy,
+        cancellerName: cancellerName,
+        message: cancelledBy === 'rider' 
+          ? 'You cancelled this ride' 
+          : `${cancellerName} cancelled this ride`
+      });
+    }
+
+    if (ride.driverId) {
+      io.to(ride.driverId._id.toString()).emit('rideCancelled', {
+        rideId: ride._id,
+        cancelledBy: cancelledBy,
+        cancellerName: cancellerName,
+        message: cancelledBy === 'driver' 
+          ? 'You cancelled this ride' 
+          : `${cancellerName} cancelled this ride`
+      });
+    }
+
+    console.log('✅ Cancellation notifications sent to both parties');
+
+    res.json({ 
+      success: true, 
+      ride: ride,
+      cancelledBy: cancelledBy,
+      message: 'Ride cancelled successfully'
+    });
+
   } catch (error) {
     console.error('❌ Cancel ride error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to cancel ride',
+      details: error.message 
+    });
   }
 });
 
