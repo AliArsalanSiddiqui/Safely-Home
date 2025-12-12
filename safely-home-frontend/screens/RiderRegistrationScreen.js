@@ -411,8 +411,7 @@ export default function RiderRegistrationScreen({ navigation }) {
               activeOpacity={0.7}
             >
               <Text style={[styles.genderText, formData.gender === 'male' && styles.genderTextActive]}>
-                👨 Male
-              </Text>
+                👨 Male </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -430,8 +429,7 @@ export default function RiderRegistrationScreen({ navigation }) {
               activeOpacity={0.7}
             >
               <Text style={[styles.genderText, formData.gender === 'female' && styles.genderTextActive]}>
-                👩 Female
-              </Text>
+                👩 Female </Text>
             </TouchableOpacity>
           </View>
           {errors.gender && touched.gender && (
@@ -443,7 +441,7 @@ export default function RiderRegistrationScreen({ navigation }) {
           <View style={[styles.passwordContainer, errors.password && touched.password && styles.inputError]}>
             <TextInput 
               style={styles.passwordInput} 
-              placeholder="Create a strong password" 
+              placeholder="Create a strong pass" 
               placeholderTextColor="#999" 
               value={formData.password} 
               onChangeText={(v) => handleFieldChange('password', v)}
@@ -499,7 +497,7 @@ export default function RiderRegistrationScreen({ navigation }) {
           <View style={[styles.passwordContainer, errors.confirmPassword && touched.confirmPassword && styles.inputError]}>
             <TextInput 
               style={styles.passwordInput} 
-              placeholder="Re-enter your password" 
+              placeholder="Re-enter pass" 
               placeholderTextColor="#999" 
               value={formData.confirmPassword} 
               onChangeText={(v) => handleFieldChange('confirmPassword', v)}

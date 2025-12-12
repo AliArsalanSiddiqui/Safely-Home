@@ -108,12 +108,12 @@ export default function RatingScreen({ navigation, route }) {
 
         <View style={styles.driverCard}>
           <ProfileAvatar user={driver} size={80} fontSize={32} />
-          <Text style={styles.driverName}>{driver?.name || 'Your Driver'}</Text>
+          <Text style={styles.driverName}>{driver?.name || 'Your Driver'} </Text>
           <View style={styles.driverStats}>
-            <Text style={styles.driverStat}>⭐ {driver.rating || '4.9'}</Text>
-            <Text style={styles.driverStat}>• ({driver.totalRides || 0}) trips</Text>
+            <Text style={styles.driverStat}>⭐ {driver.rating || '4.9'} </Text>
+            <Text style={styles.driverStat}>• ({driver.totalRides || 0}) trips </Text>
           </View>
-          <Text style={styles.tripId}>Trip #{rideId?.slice(-6) || 'XXXXX'}</Text>
+          <Text style={styles.tripId}>Trip #{rideId?.slice(-6) || 'XXXXX'} </Text>
         </View>
 
         <View style={styles.ratingSection}>
@@ -153,8 +153,7 @@ export default function RatingScreen({ navigation, route }) {
                 activeOpacity={0.7}
               >
                 <Text style={[styles.tagText, selectedTags.includes(tag.id) && styles.tagTextSelected]}>
-                  {tag.label}
-                </Text>
+                  {tag.label} </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -191,7 +190,7 @@ export default function RatingScreen({ navigation, route }) {
           style={styles.skipButton}
           onPress={handleSkip}
         >
-          <Text style={styles.skipButtonText}>Skip for Now</Text>
+          <Text style={styles.skipButtonText}>Skip for Now </Text>
         </TouchableOpacity>
 
         <View style={{ height: 30 }} />
@@ -225,7 +224,7 @@ const styles = StyleSheet.create({
   
   tagsSection: { marginBottom: 30 },
   tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  tag: { backgroundColor: COLORS.secondary, borderRadius: 20, paddingHorizontal: 15, paddingVertical: 10, marginRight: 10, marginBottom: 10, borderWidth: 2, borderColor: 'transparent' },
+  tag: { backgroundColor: COLORS.secondary, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 10, marginRight: 0, marginBottom: 10, borderWidth: 2, borderColor: 'transparent' },
   tagSelected: { backgroundColor: COLORS.accent + '30', borderColor: COLORS.accent },
   tagText: { fontSize: 14, color: COLORS.text },
   tagTextSelected: { color: COLORS.accent, fontWeight: 'bold' },

@@ -1,5 +1,5 @@
 // safely-home-frontend/screens/DriverTrackingScreen.js
-// ✅ FIXED CANCEL FUNCTIONALITY
+// ✅ FIXED: Different cancellation messages for driver
 
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking, Platform, ActivityIndicator } from 'react-native';
@@ -22,7 +22,6 @@ export default function DriverTrackingScreen({ navigation, route }) {
   const [riderInfo, setRiderInfo] = useState(rider || {});
   const [cancelling, setCancelling] = useState(false);
 
-  // Ref to prevent multiple navigations
   const hasNavigated = useRef(false);
 
   useEffect(() => {
@@ -88,25 +87,26 @@ export default function DriverTrackingScreen({ navigation, route }) {
   };
 
   const setupSocketListeners = () => {
+    // ✅ FIXED: Different messages for driver vs rider
     socketService.on('rideCancelled', (data) => {
       if (hasNavigated.current) return;
       hasNavigated.current = true;
 
       console.log('🔔 Driver received cancellation:', data);
 
-      const { cancelledBy, cancellerName, message } = data;
+      const { cancelledBy, cancellerName } = data;
 
       let alertTitle = '';
       let alertMessage = '';
 
       if (cancelledBy === 'driver') {
-        // You cancelled
+        // ✅ You (driver) cancelled
         alertTitle = 'Ride Cancelled';
-        alertMessage = 'You cancelled this ride.';
+        alertMessage = 'You have cancelled this ride.';
       } else if (cancelledBy === 'rider') {
-        // Rider cancelled
-        alertTitle = 'Ride Cancelled';
-        alertMessage = `${cancellerName || 'The rider'} cancelled this ride.`;
+        // ✅ Rider cancelled
+        alertTitle = 'Rider Cancelled';
+        alertMessage = `${cancellerName || 'The rider'} has cancelled this ride.`;
       } else {
         // Unknown cancellation
         alertTitle = 'Ride Cancelled';
@@ -119,7 +119,10 @@ export default function DriverTrackingScreen({ navigation, route }) {
         [
           { 
             text: 'OK', 
-            onPress: () => navigation.replace('DriverHome')
+            onPress: () => {
+              console.log('✅ Navigating to DriverHome after cancellation');
+              navigation.replace('DriverHome');
+            }
           }
         ],
         { type: 'warning', cancelable: false }
@@ -258,8 +261,9 @@ export default function DriverTrackingScreen({ navigation, route }) {
     );
   };
 
+  // ✅ FIXED: Navigation works now
   const handleCancelRide = () => {
-    if (cancelling) return; // Prevent multiple clicks
+    if (cancelling) return;
 
     showAlert(
       'Cancel Ride',
@@ -278,8 +282,15 @@ export default function DriverTrackingScreen({ navigation, route }) {
               
               console.log('✅ Driver successfully cancelled ride');
 
-              // Don't navigate here - let socket event handle it
-              // This ensures proper message display
+              // ✅ FIXED: Wait briefly for socket event, then navigate
+              setTimeout(() => {
+                if (!hasNavigated.current) {
+                  console.log('⚠️ Socket event delayed, navigating manually');
+                  hasNavigated.current = true;
+                  navigation.replace('DriverHome');
+                }
+              }, 1000);
+
             } catch (error) {
               setCancelling(false);
               console.error('❌ Driver cancel error:', error);
@@ -432,7 +443,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
               <Text style={styles.fareValue}>{fare.toFixed(2)} pkr</Text>
             </View>
             <View style={styles.fareRow}>
-              <Text style={styles.fareLabel}>Your Earnings (80%)</Text>
+              <Text style={styles.fareLabel}>Your Earnings (80%) </Text>
               <Text style={styles.fareEarnings}>{earnings} pkr</Text>
             </View>
             {rideDetails?.distance && (

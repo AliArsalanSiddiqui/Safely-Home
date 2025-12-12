@@ -170,7 +170,7 @@ export default function Sidebar({ visible, onClose, navigation, userType }) {
               <View style={styles.profileSection}>
               <ProfileAvatar user={user} size={80} fontSize={32} />
               <Text style={styles.userName}>{user?.name || 'User'}</Text>
-              <Text style={styles.userEmail}>{user?.email || ''}</Text>
+              <Text style={styles.userEmail}>{user?.email || ''} </Text>
               <View style={styles.userTypeBadge}>
                 <Text style={styles.userTypeText}>
                   {userType === 'rider' ? '👤 Rider' : '🚗 Driver'}

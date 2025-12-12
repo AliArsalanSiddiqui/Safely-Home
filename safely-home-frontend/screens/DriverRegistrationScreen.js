@@ -466,8 +466,7 @@ export default function DriverRegistrationScreen({ navigation }) {
               activeOpacity={0.7}
             >
               <Text style={[styles.genderText, formData.gender === 'male' && styles.genderTextActive]}>
-                👨 Male
-              </Text>
+                👨 Male </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -485,8 +484,7 @@ export default function DriverRegistrationScreen({ navigation }) {
               activeOpacity={0.7}
             >
               <Text style={[styles.genderText, formData.gender === 'female' && styles.genderTextActive]}>
-                👩 Female
-              </Text>
+                👩 Female </Text>
             </TouchableOpacity>
           </View>
           {errors.gender && touched.gender && (
@@ -528,7 +526,7 @@ export default function DriverRegistrationScreen({ navigation }) {
           <View style={[styles.passwordContainer, errors.password && touched.password && styles.inputError]}>
             <TextInput 
               style={styles.passwordInput} 
-              placeholder="Create a strong password" 
+              placeholder="Create a strong pass" 
               placeholderTextColor="#999" 
               value={formData.password} 
               onChangeText={(v) => handleFieldChange('password', v)}
@@ -584,7 +582,7 @@ export default function DriverRegistrationScreen({ navigation }) {
           <View style={[styles.passwordContainer, errors.confirmPassword && touched.confirmPassword && styles.inputError]}>
             <TextInput 
               style={styles.passwordInput} 
-              placeholder="Re-enter your password" 
+              placeholder="Re-enter pass" 
               placeholderTextColor="#999" 
               value={formData.confirmPassword} 
               onChangeText={(v) => handleFieldChange('confirmPassword', v)}
@@ -622,7 +620,7 @@ export default function DriverRegistrationScreen({ navigation }) {
                 <>
                   <Text style={styles.cameraIcon}>📷</Text>
                   <Text style={styles.cameraText}>Take Face Photo</Text>
-                  <Text style={styles.cameraSubtext}>Required for driver verification</Text>
+                  <Text style={styles.cameraSubtext}>Verification required </Text>
                 </>
               )}
             </TouchableOpacity>
@@ -818,7 +816,7 @@ const styles = StyleSheet.create({
   },
   cameraIcon: { fontSize: 50, marginBottom: 10 },
   cameraText: { color: COLORS.text, fontSize: 16, marginBottom: 5, fontWeight: 'bold' },
-  cameraSubtext: { color: COLORS.accent, fontSize: 13 },
+  cameraSubtext: { color: COLORS.accent, fontSize: 12 },
   faceImage: { width: 150, height: 150, borderRadius: 75 },
   retakeButton: {
     backgroundColor: COLORS.accent + '20',

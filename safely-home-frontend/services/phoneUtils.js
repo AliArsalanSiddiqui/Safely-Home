@@ -2,7 +2,7 @@
 // ✅ FINAL FIX: Works on Samsung, Redmi, OnePlus, ALL Android phones
 
 import { Linking, Platform, Alert } from 'react-native';
-
+import { showAlert } from '../components/CustomAlert';
 /**
  * Universal phone call - Works on ALL Android phones
  * Samsung, Redmi, OnePlus, Xiaomi, etc.
@@ -17,13 +17,13 @@ export const makePhoneCall = (phoneNumber, personName = 'Contact') => {
   const cleanNumber = phoneNumber.replace(/[^\d+]/g, '');
   console.log('📞 Calling:', cleanNumber);
 
-  Alert.alert(
+  showAlert(
     'Call ' + personName,
     `Do you want to call ${personName}?\n\n${phoneNumber}`,
     [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Call',
+        text: 'Call',style: 'destructive',
         onPress: () => {
           const url = `tel:${cleanNumber}`;
           
@@ -33,25 +33,28 @@ export const makePhoneCall = (phoneNumber, personName = 'Contact') => {
                 return Linking.openURL(url);
               } else {
                 // Show number for manual dialing
-                Alert.alert(
+                showAlert(
                   'Phone Number',
                   `Please dial manually:\n\n${phoneNumber}`,
-                  [{ text: 'OK' }]
+                  [{ text: 'OK' }],
+                  {type: 'info'}
                 );
               }
             })
             .catch((err) => {
               console.error('Call error:', err);
               // Fallback: Show number
-              Alert.alert(
+              showAlert(
                 'Phone Number',
                 `Please dial manually:\n\n${phoneNumber}`,
-                [{ text: 'OK' }]
+                [{ text: 'OK' }],
+                {type: 'info'}
               );
             });
         }
       }
-    ]
+    ],
+    {type: 'info'}
   );
 };
 
@@ -59,7 +62,7 @@ export const makePhoneCall = (phoneNumber, personName = 'Contact') => {
  * Emergency 911 call
  */
 export const makeEmergencyCall = () => {
-  Alert.alert(
+  showAlert(
     '🚨 Emergency Services',
     'This will open your phone dialer with 911.',
     [
@@ -75,14 +78,15 @@ export const makeEmergencyCall = () => {
               if (supported) {
                 return Linking.openURL(url);
               } else {
-                Alert.alert('Emergency', 'Please dial 911 manually.');
+                showAlert('Emergency', 'Please dial 911 manually.');
               }
             })
             .catch(() => {
-              Alert.alert('Emergency', 'Please dial 911 manually.');
+              showAlert('Emergency', 'Please dial 911 manually.');
             });
         }
       }
-    ]
+    ],
+    {type: 'warning'}
   );
 };

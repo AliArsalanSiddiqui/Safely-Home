@@ -87,15 +87,14 @@ export default function ChatScreen({ navigation, route }) {
     return (
       <View style={[styles.messageContainer, isMyMessage ? styles.myMessage : styles.theirMessage]}>
         {!isMyMessage && (
-          <Text style={styles.senderName}>{item.senderName || 'User'}</Text>
+          <Text style={styles.senderName}>{item.senderName || 'User'} </Text>
         )}
-        <Text style={styles.messageText}>{item.text}</Text>
-        <Text style={styles.messageTime}>
+        <Text style={styles.messageText}>{item.text} </Text>
+        <Text style={styles.messageTime} >
           {new Date(item.timestamp).toLocaleTimeString('en-US', { 
             hour: '2-digit', 
             minute: '2-digit' 
-          })}
-        </Text>
+          })} </Text>
       </View>
     );
   };
@@ -111,7 +110,6 @@ export default function ChatScreen({ navigation, route }) {
           <Text style={styles.backButton}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          {/* ✅ FIXED: Show actual other user name */}
           <Text style={styles.headerTitle}>{otherUser?.name || 'Chat'} </Text>
           <Text style={styles.headerSubtitle}>
             {userType === 'rider' ? 'Your Driver' : 'Your Rider'} </Text>

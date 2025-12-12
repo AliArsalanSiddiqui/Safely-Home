@@ -300,7 +300,7 @@ export default function LoginScreen({ navigation }) {
               disabled={loading}
             >
               <Text style={styles.registerLink}>
-                Register as{userType === 'rider' ? 'Rider' : 'Driver'}
+                Register as {userType === 'rider' ? 'Rider' : 'Driver'}
               </Text>
             </TouchableOpacity>
           </View>

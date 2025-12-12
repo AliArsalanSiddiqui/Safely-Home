@@ -1,5 +1,5 @@
 // safely-home-frontend/screens/RiderTrackingScreen.js
-// ✅ FIXED CANCEL FUNCTIONALITY
+// ✅ FIXED: Cancel navigation + Different prompts for rider/driver
 
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
@@ -135,25 +135,26 @@ export default function RiderTrackingScreen({ navigation, route }) {
       );
     });
 
+    // ✅ FIXED: Different messages for rider vs driver
     socketService.on('rideCancelled', (data) => {
       if (hasNavigated.current) return;
       hasNavigated.current = true;
 
       console.log('🔔 Rider received cancellation:', data);
 
-      const { cancelledBy, cancellerName, message } = data;
+      const { cancelledBy, cancellerName } = data;
 
       let alertTitle = '';
       let alertMessage = '';
 
       if (cancelledBy === 'rider') {
-        // You cancelled
+        // ✅ You (rider) cancelled
         alertTitle = 'Ride Cancelled';
-        alertMessage = 'You cancelled this ride.';
+        alertMessage = 'You have cancelled this ride.';
       } else if (cancelledBy === 'driver') {
-        // Driver cancelled
-        alertTitle = 'Ride Cancelled';
-        alertMessage = `${cancellerName || 'The driver'} cancelled this ride. We apologize for the inconvenience.`;
+        // ✅ Driver cancelled
+        alertTitle = 'Driver Cancelled';
+        alertMessage = `${cancellerName || 'Your driver'} has cancelled this ride. We apologize for the inconvenience. You can book another ride.`;
       } else {
         // Unknown cancellation
         alertTitle = 'Ride Cancelled';
@@ -166,7 +167,10 @@ export default function RiderTrackingScreen({ navigation, route }) {
         [
           { 
             text: 'OK', 
-            onPress: () => navigation.replace('RiderHome')
+            onPress: () => {
+              console.log('✅ Navigating to RiderHome after cancellation');
+              navigation.replace('RiderHome');
+            }
           }
         ],
         { type: 'warning', cancelable: false }
@@ -219,8 +223,9 @@ export default function RiderTrackingScreen({ navigation, route }) {
     });
   };
 
+  // ✅ FIXED: Navigation works now
   const handleCancelRide = () => {
-    if (cancelling) return; // Prevent multiple clicks
+    if (cancelling) return;
 
     showAlert(
       'Cancel Ride',
@@ -239,8 +244,15 @@ export default function RiderTrackingScreen({ navigation, route }) {
               
               console.log('✅ Rider successfully cancelled ride');
 
-              // Don't navigate here - let socket event handle it
-              // This ensures proper message display
+              // ✅ FIXED: Wait briefly for socket event, then navigate
+              setTimeout(() => {
+                if (!hasNavigated.current) {
+                  console.log('⚠️ Socket event delayed, navigating manually');
+                  hasNavigated.current = true;
+                  navigation.replace('RiderHome');
+                }
+              }, 1000);
+
             } catch (error) {
               setCancelling(false);
               console.error('❌ Rider cancel error:', error);
@@ -306,7 +318,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
           <View style={styles.navigationIcon}>
             <Text style={styles.navigationIconText}>🧭</Text>
           </View>
-          <Text style={styles.statusText}>{status}</Text>
+          <Text style={styles.statusText}>{status} </Text>
         </View>
 
         <View style={styles.driverCard}>
@@ -317,8 +329,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
               <View style={styles.ratingContainer}>
                 <Text style={styles.ratingStar}>⭐</Text>
                 <Text style={styles.ratingText}>
-                  {driver?.rating ? Number(driver.rating).toFixed(1) : '0.0'} • ({driver?.totalRides || 0}) rides
-                </Text>
+                  {driver?.rating ? Number(driver.rating).toFixed(1) : '0.0'} • ({driver?.totalRides || 0}) rides </Text>
               </View>
               <Text style={styles.genderText}>
                 {driver?.gender === 'female' ? '👩 Female Driver' : '👨 Male Driver'}
@@ -378,18 +389,18 @@ export default function RiderTrackingScreen({ navigation, route }) {
           {rideDetails && (
             <View style={styles.rideDetailsCard}>
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>💰 Fare</Text>
+                <Text style={styles.detailLabel}>💰 Fare </Text>
                 <Text style={styles.detailValue}>{rideDetails.fare?.toFixed(2) || '0.00'} pkr</Text>
               </View>
               {rideDetails.distance && (
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>📍 Distance</Text>
+                  <Text style={styles.detailLabel}>📍 Distance </Text>
                   <Text style={styles.detailValue}>{rideDetails.distance.toFixed(2)} km</Text>
                 </View>
               )}
               {rideDetails.estimatedTime && (
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>⏱️ ETA</Text>
+                  <Text style={styles.detailLabel}>⏱️ ETA </Text>
                   <Text style={styles.detailValue}>{rideDetails.estimatedTime} mins</Text>
                 </View>
               )}

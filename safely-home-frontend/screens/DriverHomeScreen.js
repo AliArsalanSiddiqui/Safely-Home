@@ -91,12 +91,6 @@ export default function DriverHomeScreen({ navigation }) {
       
       loadAvailableRides();
       
-      showAlert('🚗 New Ride Request!', `📍Pickup: ${rideData.pickup}\n💰Fare: ${rideData.fare} pkr`,
-        [
-          { text: 'Ignore', style: 'cancel' },
-          { text: 'Accept', onPress: () => handleAcceptRide(rideData.rideId, rideData)}
-        ],
-      );
     });
 
     socketService.on('rideAcceptedByYou', (data) => {
@@ -314,11 +308,11 @@ export default function DriverHomeScreen({ navigation }) {
                   }} 
                   size={50} 
                   fontSize={20}
-                  style={{ marginRight: 12 }}
+                  style={{ marginRight: 8 }}
                 />
                 <View>
-                  <Text style={styles.riderName}>👤 {ride.riderName}</Text>
-                  <Text style={styles.rideTime}>📞 {ride.riderPhone}</Text>
+                  <Text style={styles.riderName}>{ride.riderName}</Text>
+                  <Text style={styles.rideTime}>{ride.riderPhone}</Text>
                   <Text style={styles.rideTime}>
                     🕐 {new Date(ride.createdAt).toLocaleTimeString()}
                   </Text>
@@ -413,7 +407,7 @@ const styles = StyleSheet.create({
   rideTime: { fontSize: 13, color: COLORS.text,opacity: 0.7, marginTop: 3 },
   rideTime: { fontSize: 13, color: COLORS.text, opacity: 0.7, marginTop: 3 },
   fareContainer: { alignItems: 'flex-end' },
-  rideFare: { fontSize: 18, fontWeight: 'bold', color: COLORS.accent },
+  rideFare: { fontSize: 18, fontWeight: 'bold', color: COLORS.accent},
   fareLabel: { fontSize: 12, color: COLORS.text, opacity: 0.7 },
   rideDetails: { marginBottom: 15 },
   rideLocation: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, backgroundColor: COLORS.primary, padding: 12, borderRadius: 10 },
