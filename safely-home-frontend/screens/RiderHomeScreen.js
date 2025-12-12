@@ -161,7 +161,6 @@ export default function RiderHomeScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => setSidebarVisible(true)}>
           <Text style={styles.menuButton}>☰</Text>

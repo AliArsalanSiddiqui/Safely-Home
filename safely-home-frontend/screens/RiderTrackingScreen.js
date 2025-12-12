@@ -1,7 +1,7 @@
 // safely-home-frontend/screens/RiderTrackingScreen.js
-// ✅ WITH CUSTOM ALERTS
+// ✅ FIXED CANCEL FUNCTIONALITY
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, API_URL } from '../config';
@@ -26,6 +26,10 @@ export default function RiderTrackingScreen({ navigation, route }) {
   const [token, setToken] = useState(null);
   const [rideDetails, setRideDetails] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
+
+  // Ref to prevent multiple navigations
+  const hasNavigated = useRef(false);
 
   useEffect(() => {
     console.log('✅ RiderTrackingScreen loaded with:', {
@@ -35,6 +39,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
       driver: driver?.name
     });
 
+    hasNavigated.current = false;
     loadUser();
     setupSocketListeners();
     fetchRideDetails();
@@ -114,6 +119,9 @@ export default function RiderTrackingScreen({ navigation, route }) {
 
   const setupSocketListeners = () => {
     socketService.on('rideCompleted', (data) => {
+      if (hasNavigated.current) return;
+      hasNavigated.current = true;
+
       showAlert(
         'Trip Completed! 🎉',
         'Thank you for riding with Safely Home. How was your experience?',
@@ -128,13 +136,37 @@ export default function RiderTrackingScreen({ navigation, route }) {
     });
 
     socketService.on('rideCancelled', (data) => {
+      if (hasNavigated.current) return;
+      hasNavigated.current = true;
+
+      console.log('🔔 Rider received cancellation:', data);
+
+      const { cancelledBy, cancellerName, message } = data;
+
+      let alertTitle = '';
+      let alertMessage = '';
+
+      if (cancelledBy === 'rider') {
+        // You cancelled
+        alertTitle = 'Ride Cancelled';
+        alertMessage = 'You cancelled this ride.';
+      } else if (cancelledBy === 'driver') {
+        // Driver cancelled
+        alertTitle = 'Ride Cancelled';
+        alertMessage = `${cancellerName || 'The driver'} cancelled this ride. We apologize for the inconvenience.`;
+      } else {
+        // Unknown cancellation
+        alertTitle = 'Ride Cancelled';
+        alertMessage = 'This ride has been cancelled.';
+      }
+
       showAlert(
-        'Ride Cancelled',
-        'The driver has cancelled this ride. We apologize for the inconvenience.',
+        alertTitle,
+        alertMessage,
         [
           { 
-            text: 'Find Another Ride', 
-            onPress: () => navigation.goBack() 
+            text: 'OK', 
+            onPress: () => navigation.replace('RiderHome')
           }
         ],
         { type: 'warning', cancelable: false }
@@ -188,6 +220,8 @@ export default function RiderTrackingScreen({ navigation, route }) {
   };
 
   const handleCancelRide = () => {
+    if (cancelling) return; // Prevent multiple clicks
+
     showAlert(
       'Cancel Ride',
       'Are you sure you want to cancel this ride? This may affect your rider rating.',
@@ -197,15 +231,20 @@ export default function RiderTrackingScreen({ navigation, route }) {
           text: 'Yes, Cancel',
           style: 'destructive',
           onPress: async () => {
+            setCancelling(true);
             try {
+              console.log('🚫 Rider cancelling ride:', rideId);
+              
               await cancelRide(rideId);
-              showAlert(
-                'Ride Cancelled',
-                'Your ride has been cancelled successfully',
-                [{ text: 'OK', onPress: () => navigation.goBack() }],
-                { type: 'info' }
-              );
+              
+              console.log('✅ Rider successfully cancelled ride');
+
+              // Don't navigate here - let socket event handle it
+              // This ensures proper message display
             } catch (error) {
+              setCancelling(false);
+              console.error('❌ Rider cancel error:', error);
+              
               showAlert(
                 'Cancellation Failed',
                 'Failed to cancel ride. Please try again or contact support.',
@@ -263,7 +302,7 @@ export default function RiderTrackingScreen({ navigation, route }) {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.statusContainer}>
-          <Text style={styles.arrivalTime}>{arrivalTime} </Text>
+          <Text style={styles.arrivalTime}>{arrivalTime}</Text>
           <View style={styles.navigationIcon}>
             <Text style={styles.navigationIconText}>🧭</Text>
           </View>
@@ -361,8 +400,16 @@ export default function RiderTrackingScreen({ navigation, route }) {
             <TouchableOpacity style={styles.reportButton} onPress={handleReportIssue}>
               <Text style={styles.reportButtonText}>🚨 Report Safety Issue</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelButton} onPress={handleCancelRide}>
-              <Text style={styles.cancelButtonText}>Cancel Ride</Text>
+            <TouchableOpacity 
+              style={[styles.cancelButton, cancelling && styles.cancelButtonDisabled]} 
+              onPress={handleCancelRide}
+              disabled={cancelling}
+            >
+              {cancelling ? (
+                <ActivityIndicator color={COLORS.text} size="small" />
+              ) : (
+                <Text style={styles.cancelButtonText}>Cancel Ride</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -386,8 +433,6 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 18, color: COLORS.text, textAlign: 'center' },
   driverCard: { backgroundColor: COLORS.secondary, marginHorizontal: 20, borderRadius: 20, padding: 25 },
   driverInfo: { flexDirection: 'row', marginBottom: 20 },
-  driverAvatar: { width: 70, height: 70, borderRadius: 35, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
-  driverAvatarText: { fontSize: 28, fontWeight: 'bold', color: COLORS.textDark },
   driverDetails: { flex: 1, justifyContent: 'center', marginLeft: 15 },
   driverName: { fontSize: 22, fontWeight: 'bold', color: COLORS.text, marginBottom: 5 },
   ratingContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
@@ -421,4 +466,5 @@ const styles = StyleSheet.create({
   reportButtonText: { fontSize: 16, color: COLORS.textDark, fontWeight: 'bold' },
   cancelButton: { backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   cancelButtonText: { fontSize: 16, color: COLORS.text, fontWeight: '600' },
+  cancelButtonDisabled: { opacity: 0.5 },
 });

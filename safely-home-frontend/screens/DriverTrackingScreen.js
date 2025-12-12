@@ -1,8 +1,8 @@
 // safely-home-frontend/screens/DriverTrackingScreen.js
-// ✅ UPDATED: Using Custom Alerts instead of Alert.alert
+// ✅ FIXED CANCEL FUNCTIONALITY
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking, Platform, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, API_URL } from '../config';
 import { completeRide, cancelRide } from '../services/api';
@@ -20,6 +20,10 @@ export default function DriverTrackingScreen({ navigation, route }) {
   const [rideDetails, setRideDetails] = useState(null);
   const [token, setToken] = useState(null);
   const [riderInfo, setRiderInfo] = useState(rider || {});
+  const [cancelling, setCancelling] = useState(false);
+
+  // Ref to prevent multiple navigations
+  const hasNavigated = useRef(false);
 
   useEffect(() => {
     console.log('🔍 Route params received:', {
@@ -29,6 +33,7 @@ export default function DriverTrackingScreen({ navigation, route }) {
       destination
     });
 
+    hasNavigated.current = false;
     loadUser();
     setupSocketListeners();
     
@@ -83,12 +88,41 @@ export default function DriverTrackingScreen({ navigation, route }) {
   };
 
   const setupSocketListeners = () => {
-    socketService.on('rideCancelled', () => {
+    socketService.on('rideCancelled', (data) => {
+      if (hasNavigated.current) return;
+      hasNavigated.current = true;
+
+      console.log('🔔 Driver received cancellation:', data);
+
+      const { cancelledBy, cancellerName, message } = data;
+
+      let alertTitle = '';
+      let alertMessage = '';
+
+      if (cancelledBy === 'driver') {
+        // You cancelled
+        alertTitle = 'Ride Cancelled';
+        alertMessage = 'You cancelled this ride.';
+      } else if (cancelledBy === 'rider') {
+        // Rider cancelled
+        alertTitle = 'Ride Cancelled';
+        alertMessage = `${cancellerName || 'The rider'} cancelled this ride.`;
+      } else {
+        // Unknown cancellation
+        alertTitle = 'Ride Cancelled';
+        alertMessage = 'This ride has been cancelled.';
+      }
+
       showAlert(
-        'Ride Cancelled',
-        'cancelled the ride',
-        [{text: 'Ok'}],
-        { type: 'warning' }
+        alertTitle,
+        alertMessage,
+        [
+          { 
+            text: 'OK', 
+            onPress: () => navigation.replace('DriverHome')
+          }
+        ],
+        { type: 'warning', cancelable: false }
       );
     });
 
@@ -225,6 +259,8 @@ export default function DriverTrackingScreen({ navigation, route }) {
   };
 
   const handleCancelRide = () => {
+    if (cancelling) return; // Prevent multiple clicks
+
     showAlert(
       'Cancel Ride',
       'This may affect your rating. Are you sure?',
@@ -234,10 +270,20 @@ export default function DriverTrackingScreen({ navigation, route }) {
           text: 'Yes, Cancel',
           style: 'destructive',
           onPress: async () => {
+            setCancelling(true);
             try {
+              console.log('🚫 Driver cancelling ride:', rideId);
+              
               await cancelRide(rideId);
-              navigation.replace('DriverHome');
+              
+              console.log('✅ Driver successfully cancelled ride');
+
+              // Don't navigate here - let socket event handle it
+              // This ensures proper message display
             } catch (error) {
+              setCancelling(false);
+              console.error('❌ Driver cancel error:', error);
+              
               showAlert(
                 'Error',
                 'Failed to cancel ride. Please try again.',
@@ -410,8 +456,16 @@ export default function DriverTrackingScreen({ navigation, route }) {
               <TouchableOpacity style={styles.emergencyButton} onPress={handleEmergency}>
                 <Text style={styles.emergencyButtonText}>🚨 Emergency</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelButton} onPress={handleCancelRide}>
-                <Text style={styles.cancelButtonText}>Cancel Ride</Text>
+              <TouchableOpacity 
+                style={[styles.cancelButton, cancelling && styles.cancelButtonDisabled]} 
+                onPress={handleCancelRide}
+                disabled={cancelling}
+              >
+                {cancelling ? (
+                  <ActivityIndicator color={COLORS.text} size="small" />
+                ) : (
+                  <Text style={styles.cancelButtonText}>Cancel Ride</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -440,8 +494,6 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 16, color: COLORS.text, textAlign: 'center' },
   riderCard: { backgroundColor: COLORS.secondary, marginHorizontal: 20, borderRadius: 20, padding: 25 },
   riderInfo: { flexDirection: 'row', marginBottom: 20 },
-  riderAvatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
-  riderAvatarText: { fontSize: 24, fontWeight: 'bold', color: COLORS.textDark },
   riderDetails: { flex: 1, justifyContent: 'center', marginLeft: 15 },
   riderName: { fontSize: 20, fontWeight: 'bold', color: COLORS.text, marginBottom: 5 },
   riderPhone: { fontSize: 14, color: COLORS.text, opacity: 0.8 },
@@ -473,6 +525,7 @@ const styles = StyleSheet.create({
   emergencyButtonText: { fontSize: 14, color: COLORS.textDark, fontWeight: 'bold' },
   cancelButton: { flex: 1, backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginLeft: 5 },
   cancelButtonText: { fontSize: 14, color: COLORS.text, fontWeight: '600' },
+  cancelButtonDisabled: { opacity: 0.5 },
   tipsCard: { backgroundColor: COLORS.secondary, marginHorizontal: 20, marginTop: 20, borderRadius: 15, padding: 20 },
   tipsTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.text, marginBottom: 10 },
   tipsText: { fontSize: 14, color: COLORS.text, opacity: 0.8, marginBottom: 5 },
